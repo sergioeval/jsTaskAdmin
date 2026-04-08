@@ -31,6 +31,9 @@ const taskEditForm = document.getElementById("taskEditForm");
 const taskEditTitle = document.getElementById("taskEditTitle");
 const taskEditStatus = document.getElementById("taskEditStatus");
 const deleteTaskBtn = document.getElementById("deleteTaskBtn");
+const checklistList = document.getElementById("checklistList");
+const newChecklistText = document.getElementById("newChecklistText");
+const addChecklistBtn = document.getElementById("addChecklistBtn");
 const commentsList = document.getElementById("commentsList");
 const newCommentText = document.getElementById("newCommentText");
 const addCommentBtn = document.getElementById("addCommentBtn");
@@ -559,6 +562,117 @@ function renderComments(task) {
   }
 }
 
+function renderChecklist(task) {
+  checklistList.innerHTML = "";
+  const items = Array.isArray(task.checklist) ? task.checklist : [];
+
+  if (items.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "taskSmall";
+    empty.textContent = "Sin actividades.";
+    checklistList.appendChild(empty);
+    return;
+  }
+
+  for (const item of items) {
+    const wrap = document.createElement("div");
+    wrap.className = "checkItem";
+
+    const row = document.createElement("div");
+    row.className = "checkRow";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "checkBox";
+    cb.checked = Boolean(item.done);
+    cb.addEventListener("change", () => {
+      updateProject((proj) => ({
+        ...proj,
+        updatedAt: nowIso(),
+        tasks: proj.tasks.map((t) => {
+          if (t.id !== editingTaskId) return t;
+          const existing = Array.isArray(t.checklist) ? t.checklist : [];
+          return {
+            ...t,
+            updatedAt: nowIso(),
+            checklist: existing.map((x) =>
+              x.id === item.id ? { ...x, done: cb.checked, updatedAt: nowIso() } : x
+            ),
+          };
+        }),
+      }));
+      const refreshed = getEditingTask();
+      if (refreshed) renderChecklist(refreshed);
+      toast("Checklist actualizada.");
+    });
+
+    const text = document.createElement("p");
+    text.className = `checkText${item.done ? " done" : ""}`;
+    text.textContent = item.text;
+
+    const actions = document.createElement("div");
+    actions.className = "taskActions";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "iconBtn";
+    editBtn.textContent = "Editar";
+    editBtn.addEventListener("click", () => {
+      const next = prompt("Editar actividad:", item.text);
+      const trimmed = String(next || "").trim();
+      if (!trimmed) return;
+      updateProject((proj) => ({
+        ...proj,
+        updatedAt: nowIso(),
+        tasks: proj.tasks.map((t) => {
+          if (t.id !== editingTaskId) return t;
+          const existing = Array.isArray(t.checklist) ? t.checklist : [];
+          return {
+            ...t,
+            updatedAt: nowIso(),
+            checklist: existing.map((x) =>
+              x.id === item.id ? { ...x, text: trimmed, updatedAt: nowIso() } : x
+            ),
+          };
+        }),
+      }));
+      const refreshed = getEditingTask();
+      if (refreshed) renderChecklist(refreshed);
+      toast("Actividad actualizada.");
+    });
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "iconBtn";
+    delBtn.textContent = "Borrar";
+    delBtn.addEventListener("click", () => {
+      const ok = confirm("Borrar actividad?");
+      if (!ok) return;
+      updateProject((proj) => ({
+        ...proj,
+        updatedAt: nowIso(),
+        tasks: proj.tasks.map((t) => {
+          if (t.id !== editingTaskId) return t;
+          const existing = Array.isArray(t.checklist) ? t.checklist : [];
+          return { ...t, updatedAt: nowIso(), checklist: existing.filter((x) => x.id !== item.id) };
+        }),
+      }));
+      const refreshed = getEditingTask();
+      if (refreshed) renderChecklist(refreshed);
+      toast("Actividad borrada.");
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+
+    row.appendChild(cb);
+    row.appendChild(text);
+    row.appendChild(actions);
+    wrap.appendChild(row);
+    checklistList.appendChild(wrap);
+  }
+}
+
 function openTaskEditor(taskId) {
   if (!currentWorkspace) return;
   const p = getCurrentProject(currentWorkspace);
@@ -568,6 +682,8 @@ function openTaskEditor(taskId) {
   editingTaskId = taskId;
   taskEditTitle.value = t.title;
   taskEditStatus.value = t.status;
+  newChecklistText.value = "";
+  renderChecklist(t);
   newCommentText.value = "";
   renderComments(t);
   setTaskModal(true);
@@ -578,6 +694,8 @@ function closeTaskEditor() {
   editingTaskId = null;
   taskEditTitle.value = "";
   taskEditStatus.value = "todo";
+  newChecklistText.value = "";
+  checklistList.innerHTML = "";
   newCommentText.value = "";
   delete newCommentText.dataset.editingCommentId;
   addCommentBtn.textContent = "Agregar";
@@ -758,6 +876,7 @@ taskForm.addEventListener("submit", (e) => {
       id: uuid(),
       title,
       status,
+      checklist: [],
       comments: [],
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -864,6 +983,7 @@ taskEditForm.addEventListener("submit", (e) => {
             title,
             status,
             updatedAt: nowIso(),
+            checklist: Array.isArray(x.checklist) ? x.checklist : [],
             comments: Array.isArray(x.comments) ? x.comments : [],
           }
         : x
@@ -871,6 +991,28 @@ taskEditForm.addEventListener("submit", (e) => {
   }));
   toast("Guardado.");
   closeTaskEditor();
+});
+
+addChecklistBtn.addEventListener("click", () => {
+  if (!currentWorkspace || !editingTaskId) return;
+  const text = String(newChecklistText.value || "").trim();
+  if (!text) return;
+  const item = { id: uuid(), text, done: false, createdAt: nowIso(), updatedAt: nowIso() };
+
+  updateProject((proj) => ({
+    ...proj,
+    updatedAt: nowIso(),
+    tasks: proj.tasks.map((t) => {
+      if (t.id !== editingTaskId) return t;
+      const existing = Array.isArray(t.checklist) ? t.checklist : [];
+      return { ...t, updatedAt: nowIso(), checklist: [...existing, item] };
+    }),
+  }));
+
+  newChecklistText.value = "";
+  const refreshed = getEditingTask();
+  if (refreshed) renderChecklist(refreshed);
+  toast("Actividad agregada.");
 });
 
 addCommentBtn.addEventListener("click", () => {

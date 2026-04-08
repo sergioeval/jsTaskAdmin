@@ -534,3 +534,38 @@ body.projectMode #page-project {
   color: var(--muted);
   font-size: 0.85rem;
 }
+
+.checklistList {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+.checkItem {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.65rem 0.75rem;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.checkBox {
+  width: 18px;
+  height: 18px;
+}
+
+.checkText {
+  margin: 0;
+  flex: 1;
+  word-break: break-word;
+}
+
+.checkText.done {
+  color: var(--muted);
+  text-decoration: line-through;
+}
