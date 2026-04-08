@@ -516,29 +516,12 @@ function renderComments(task) {
     editBtn.className = "iconBtn";
     editBtn.textContent = "Editar";
     editBtn.addEventListener("click", () => {
-      const next = prompt("Editar comentario:", c.text);
-      const trimmed = String(next || "").trim();
-      if (!trimmed) return;
-
-      updateProject((proj) => ({
-        ...proj,
-        updatedAt: nowIso(),
-        tasks: proj.tasks.map((t) => {
-          if (t.id !== editingTaskId) return t;
-          const existing = Array.isArray(t.comments) ? t.comments : [];
-          return {
-            ...t,
-            updatedAt: nowIso(),
-            comments: existing.map((x) =>
-              x.id === c.id ? { ...x, text: trimmed, updatedAt: nowIso() } : x
-            ),
-          };
-        }),
-      }));
-
-      const refreshed = getEditingTask();
-      if (refreshed) renderComments(refreshed);
-      toast("Comentario actualizado.");
+      // Use the textarea editor so comments can be multiline.
+      newCommentText.value = c.text;
+      newCommentText.focus();
+      // stash editing id on the element to avoid extra globals
+      newCommentText.dataset.editingCommentId = c.id;
+      addCommentBtn.textContent = "Guardar comentario";
     });
 
     const delBtn = document.createElement("button");
@@ -596,6 +579,8 @@ function closeTaskEditor() {
   taskEditTitle.value = "";
   taskEditStatus.value = "todo";
   newCommentText.value = "";
+  delete newCommentText.dataset.editingCommentId;
+  addCommentBtn.textContent = "Agregar";
   commentsList.innerHTML = "";
   setTaskModal(false);
 }
@@ -892,7 +877,7 @@ addCommentBtn.addEventListener("click", () => {
   if (!currentWorkspace || !editingTaskId) return;
   const text = String(newCommentText.value || "").trim();
   if (!text) return;
-  const comment = { id: uuid(), text, createdAt: nowIso(), updatedAt: nowIso() };
+  const editingCommentId = newCommentText.dataset.editingCommentId || null;
 
   updateProject((proj) => ({
     ...proj,
@@ -900,14 +885,28 @@ addCommentBtn.addEventListener("click", () => {
     tasks: proj.tasks.map((t) => {
       if (t.id !== editingTaskId) return t;
       const existing = Array.isArray(t.comments) ? t.comments : [];
+
+      if (editingCommentId) {
+        return {
+          ...t,
+          updatedAt: nowIso(),
+          comments: existing.map((c) =>
+            c.id === editingCommentId ? { ...c, text, updatedAt: nowIso() } : c
+          ),
+        };
+      }
+
+      const comment = { id: uuid(), text, createdAt: nowIso(), updatedAt: nowIso() };
       return { ...t, updatedAt: nowIso(), comments: [...existing, comment] };
     }),
   }));
 
+  delete newCommentText.dataset.editingCommentId;
+  addCommentBtn.textContent = "Agregar";
   newCommentText.value = "";
   const refreshed = getEditingTask();
   if (refreshed) renderComments(refreshed);
-  toast("Comentario agregado.");
+  toast(editingCommentId ? "Comentario guardado." : "Comentario agregado.");
 });
 
 deleteTaskBtn.addEventListener("click", () => {
