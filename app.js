@@ -208,6 +208,18 @@ function loadProjectTasks(userNumber, projectId) {
       id: String(t.id || uuid()),
       title: String(t.title || "").trim() || "Sin título",
       status: STATUSES.includes(t.status) ? t.status : "backlog",
+      checklist: Array.isArray(t.checklist)
+        ? t.checklist
+            .filter((c) => c && typeof c === "object")
+            .map((c) => ({
+              id: String(c.id || uuid()),
+              text: String(c.text || "").trim(),
+              done: Boolean(c.done),
+              createdAt: c.createdAt || nowIso(),
+              updatedAt: c.updatedAt || nowIso(),
+            }))
+            .filter((c) => c.text.length > 0)
+        : [],
       comments: Array.isArray(t.comments)
         ? t.comments
             .filter((c) => c && typeof c === "object")
@@ -351,6 +363,18 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
           id: String(t.id || uuid()),
           title: String(t.title || t.text || "").trim() || "Sin título",
           status: STATUSES.includes(t.status) ? t.status : "backlog",
+          checklist: Array.isArray(t.checklist)
+            ? t.checklist
+                .filter((c) => c && typeof c === "object")
+                .map((c) => ({
+                  id: String(c.id || uuid()),
+                  text: String(c.text || "").trim(),
+                  done: Boolean(c.done),
+                  createdAt: c.createdAt || nowIso(),
+                  updatedAt: nowIso(),
+                }))
+                .filter((c) => c.text.length > 0)
+            : [],
           comments: Array.isArray(t.comments)
             ? t.comments
                 .filter((c) => c && typeof c === "object")
