@@ -54,6 +54,7 @@ const modalNote = document.getElementById("modalNote");
 const closeNoteBtn = document.getElementById("closeNoteBtn");
 const deleteNoteBtn = document.getElementById("deleteNoteBtn");
 const noteModalTitle = document.getElementById("noteModalTitle");
+const notesTagFilter = document.getElementById("notesTagFilter");
 
 const noteForm = document.getElementById("noteForm");
 const noteTitle = document.getElementById("noteTitle");
@@ -463,6 +464,7 @@ let currentProjectId = null;
 let currentUserNumber = null;
 let currentProjectTab = "tasks";
 let editingNoteId = null;
+let currentNotesTag = "";
 
 function setProjectTab(which) {
   currentProjectTab = which === "notes" ? "notes" : "tasks";
@@ -472,6 +474,16 @@ function setProjectTab(which) {
   tabNotesBtn.setAttribute("aria-selected", String(currentProjectTab === "notes"));
   tabTasks.classList.toggle("hidden", currentProjectTab !== "tasks");
   tabNotes.classList.toggle("hidden", currentProjectTab !== "notes");
+}
+
+function normalizeTag(t) {
+  return String(t || "").trim().toLowerCase();
+}
+
+function setNotesTagFilter(tag) {
+  currentNotesTag = String(tag || "");
+  if (notesTagFilter) notesTagFilter.value = currentNotesTag;
+  if (currentWorkspace) renderNotes(currentWorkspace);
 }
 
 function setWorkspace(ws) {
@@ -919,15 +931,52 @@ function renderNotes(ws) {
   const notes = Array.isArray(p.notes) ? p.notes : [];
   notesList.innerHTML = "";
 
-  if (notes.length === 0) {
+  // Build tag options (from all notes in this project).
+  if (notesTagFilter) {
+    const prev = currentNotesTag;
+    const tagSet = new Map(); // normalized -> display
+    for (const n of notes) {
+      const tags = Array.isArray(n.tags) ? n.tags : [];
+      for (const t of tags) {
+        const norm = normalizeTag(t);
+        const display = String(t || "").trim();
+        if (!norm || !display) continue;
+        if (!tagSet.has(norm)) tagSet.set(norm, display);
+      }
+    }
+    const options = [{ value: "", label: "Todos" }];
+    for (const [value, label] of [...tagSet.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
+      options.push({ value, label });
+    }
+    notesTagFilter.innerHTML = "";
+    for (const opt of options) {
+      const o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.label;
+      notesTagFilter.appendChild(o);
+    }
+    // keep selection if still valid, else reset to Todos
+    notesTagFilter.value = options.some((o) => o.value === prev) ? prev : "";
+    currentNotesTag = notesTagFilter.value;
+  }
+
+  const filtered =
+    currentNotesTag && currentNotesTag.length > 0
+      ? notes.filter((n) => {
+          const tags = Array.isArray(n.tags) ? n.tags : [];
+          return tags.some((t) => normalizeTag(t) === currentNotesTag);
+        })
+      : notes;
+
+  if (filtered.length === 0) {
     const empty = document.createElement("p");
     empty.className = "hint";
-    empty.textContent = "Sin notas todavía.";
+    empty.textContent = currentNotesTag ? "No hay notas con ese tag." : "Sin notas todavía.";
     notesList.appendChild(empty);
     return;
   }
 
-  const sorted = [...notes].sort((a, b) => {
+  const sorted = [...filtered].sort((a, b) => {
     const ta = Date.parse(a.updatedAt || a.createdAt || "") || 0;
     const tb = Date.parse(b.updatedAt || b.createdAt || "") || 0;
     return tb - ta;
@@ -1246,6 +1295,8 @@ function goProject(projectId) {
 
 tabTasksBtn.addEventListener("click", () => setProjectTab("tasks"));
 tabNotesBtn.addEventListener("click", () => setProjectTab("notes"));
+
+notesTagFilter.addEventListener("change", () => setNotesTagFilter(notesTagFilter.value));
 
 newNoteBtn.addEventListener("click", () => openNoteEditor(null));
 closeNoteBtn.addEventListener("click", () => closeNoteEditor());
