@@ -347,10 +347,17 @@ body.projectMode #page-project {
   width: 100%;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(0, 0, 0, 0.25);
+  /* Stronger contrast so text stays readable across browsers/themes. */
+  background: rgba(0, 0, 0, 0.45);
   color: var(--text);
   padding: 0.85rem 1rem;
   outline: none;
+}
+
+.select option {
+  /* Some browsers ignore option styling, but when respected this helps a lot. */
+  background: rgba(18, 26, 51, 0.98);
+  color: var(--text);
 }
 
 .select:focus {
