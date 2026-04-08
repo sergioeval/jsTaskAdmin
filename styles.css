@@ -491,6 +491,12 @@ body.projectMode #page-project {
   padding: 1rem;
 }
 
+/* Make the task editor modal much wider (near full-screen). */
+#modalTask .modalPanel {
+  width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+}
+
 .modalHeader {
   display: flex;
   align-items: center;
