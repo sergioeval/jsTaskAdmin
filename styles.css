@@ -424,6 +424,26 @@ body.projectMode #page-project {
   padding: 0.4rem 0.55rem;
 }
 
+.task {
+  --prio: 5;
+  --prioHue: calc(120 - ((var(--prio) - 1) * (120 / 9)));
+  border-left: 6px solid hsl(var(--prioHue) 85% 60% / 0.95);
+}
+
+.priorityBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--muted);
+}
+
 .taskTitle {
   margin: 0 0 0.6rem;
   font-weight: 800;

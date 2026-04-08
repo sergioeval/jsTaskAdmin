@@ -29,6 +29,7 @@ const closeTaskBtn = document.getElementById("closeTaskBtn");
 const cancelTaskBtn = document.getElementById("cancelTaskBtn");
 const taskEditForm = document.getElementById("taskEditForm");
 const taskEditTitle = document.getElementById("taskEditTitle");
+const taskEditPriority = document.getElementById("taskEditPriority");
 const taskEditStatus = document.getElementById("taskEditStatus");
 const deleteTaskBtn = document.getElementById("deleteTaskBtn");
 const checklistList = document.getElementById("checklistList");
@@ -40,6 +41,7 @@ const addCommentBtn = document.getElementById("addCommentBtn");
 
 const taskForm = document.getElementById("taskForm");
 const taskTitleInput = document.getElementById("taskTitle");
+const taskPrioritySelect = document.getElementById("taskPriority");
 const taskStatusSelect = document.getElementById("taskStatus");
 
 const tabTasksBtn = document.getElementById("tabTasksBtn");
@@ -134,6 +136,15 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function clampPriority(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 5;
+  const int = Math.round(n);
+  if (int < 1) return 1;
+  if (int > 10) return 10;
+  return int;
+}
+
 function defaultProject(name = "Default") {
   return {
     id: uuid(),
@@ -208,6 +219,7 @@ function loadProjectTasks(userNumber, projectId) {
       id: String(t.id || uuid()),
       title: String(t.title || "").trim() || "Sin título",
       status: STATUSES.includes(t.status) ? t.status : "backlog",
+      priority: clampPriority(t.priority),
       checklist: Array.isArray(t.checklist)
         ? t.checklist
             .filter((c) => c && typeof c === "object")
@@ -363,6 +375,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
           id: String(t.id || uuid()),
           title: String(t.title || t.text || "").trim() || "Sin título",
           status: STATUSES.includes(t.status) ? t.status : "backlog",
+          priority: clampPriority(t.priority),
           checklist: Array.isArray(t.checklist)
             ? t.checklist
                 .filter((c) => c && typeof c === "object")
@@ -528,6 +541,8 @@ function taskCard(task) {
   el.className = "task";
   el.draggable = true;
   el.dataset.taskId = task.id;
+  const prio = clampPriority(task.priority);
+  el.style.setProperty("--prio", String(prio));
 
   const title = document.createElement("p");
   title.className = "taskTitle";
@@ -543,12 +558,18 @@ function taskCard(task) {
   const actions = document.createElement("div");
   actions.className = "taskActions";
 
+  const badge = document.createElement("span");
+  badge.className = "priorityBadge";
+  badge.textContent = String(prio);
+  badge.title = `Prioridad ${prio} (1 = más importante)`;
+
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "iconBtn";
   editBtn.textContent = "Editar";
   editBtn.addEventListener("click", () => openTaskEditor(task.id));
 
+  actions.appendChild(badge);
   actions.appendChild(editBtn);
 
   meta.appendChild(small);
@@ -772,6 +793,7 @@ function openTaskEditor(taskId) {
   editingTaskId = taskId;
   taskEditTitle.value = t.title;
   taskEditStatus.value = t.status;
+  if (taskEditPriority) taskEditPriority.value = String(clampPriority(t.priority));
   newChecklistText.value = "";
   renderChecklist(t);
   newCommentText.value = "";
@@ -784,6 +806,7 @@ function closeTaskEditor() {
   editingTaskId = null;
   taskEditTitle.value = "";
   taskEditStatus.value = "todo";
+  if (taskEditPriority) taskEditPriority.value = "5";
   newChecklistText.value = "";
   checklistList.innerHTML = "";
   newCommentText.value = "";
@@ -1101,12 +1124,14 @@ taskForm.addEventListener("submit", (e) => {
   const title = String(taskTitleInput.value || "").trim();
   if (!title) return;
   const status = STATUSES.includes(taskStatusSelect.value) ? taskStatusSelect.value : "backlog";
+  const priority = clampPriority(taskPrioritySelect?.value);
 
   updateProject((p) => {
     const t = {
       id: uuid(),
       title,
       status,
+      priority,
       checklist: [],
       comments: [],
       createdAt: nowIso(),
@@ -1116,6 +1141,7 @@ taskForm.addEventListener("submit", (e) => {
   });
 
   taskTitleInput.value = "";
+  if (taskPrioritySelect) taskPrioritySelect.value = "5";
   toast("Tarea creada.");
 });
 
@@ -1236,6 +1262,7 @@ taskEditForm.addEventListener("submit", (e) => {
   if (!currentWorkspace || !editingTaskId) return;
   const title = String(taskEditTitle.value || "").trim();
   const status = STATUSES.includes(taskEditStatus.value) ? taskEditStatus.value : "backlog";
+  const priority = clampPriority(taskEditPriority?.value);
   if (!title) return;
 
   updateProject((proj) => ({
@@ -1247,6 +1274,7 @@ taskEditForm.addEventListener("submit", (e) => {
             ...x,
             title,
             status,
+            priority,
             updatedAt: nowIso(),
             checklist: Array.isArray(x.checklist) ? x.checklist : [],
             comments: Array.isArray(x.comments) ? x.comments : [],
