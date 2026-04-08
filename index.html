@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <h1 class="title">Local Workspace</h1>
+        <p class="hint">JS puro + HTML + CSS. Todo se guarda localmente por número de usuario.</p>
+      </header>
+
+      <section id="view-login" class="card" aria-label="Login">
+        <h2 class="cardTitle">Ingresar</h2>
+        <p class="hint">Solo pedimos un <strong>número de usuario</strong>. No hay contraseña.</p>
+
+        <form id="loginForm" class="form">
+          <label class="label" for="userNumber">Número de usuario</label>
+          <div class="row">
+            <input
+              id="userNumber"
+              name="userNumber"
+              class="input"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="ej: 1001"
+              required
+              min="1"
+              step="1"
+              type="number"
+            />
+            <button class="btn" type="submit">Entrar</button>
+          </div>
+          <p class="finePrint">
+            Esto crea/carga tu “workspace” desde el navegador (localStorage) y lo podés exportar/importar como JSON.
+          </p>
+        </form>
+      </section>
+
+      <section id="view-app" class="card hidden" aria-label="Workspace">
+        <div class="cardHeader">
+          <div>
+            <h2 class="cardTitle">Welcome</h2>
+            <p class="hint">
+              Usuario: <strong><span id="currentUser">—</span></strong>
+            </p>
+          </div>
+          <button id="logoutBtn" class="btnSecondary" type="button">Salir</button>
+        </div>
+
+        <section id="page-projects" class="page" aria-label="Proyectos">
+          <div class="panel">
+            <div class="row wrap">
+              <div class="grow">
+                <h3 class="panelTitle">Proyectos</h3>
+                <p class="hint">Creá y administrá tus proyectos. Entrá a uno para ver su kanban.</p>
+              </div>
+              <button id="newProjectBtn" class="btn" type="button">Nuevo proyecto</button>
+            </div>
+          </div>
+
+          <div id="projectList" class="projectList" aria-label="Lista de proyectos"></div>
+
+          <div class="panel">
+            <h3 class="panelTitle">Exportar / Importar</h3>
+            <p class="hint">Usá esto para respaldar/restaurar tu workspace.</p>
+
+            <div class="row wrap">
+              <button id="exportBtn" class="btn" type="button">Exportar JSON</button>
+              <input id="importFile" class="file" type="file" accept="application/json,.json" />
+              <button id="importBtn" class="btn" type="button" disabled>Importar JSON</button>
+            </div>
+
+            <p class="finePrint">Importar reemplaza el workspace actual del usuario.</p>
+          </div>
+        </section>
+
+        <section id="page-project" class="page hidden" aria-label="Proyecto">
+          <div class="panel">
+            <div class="row wrap">
+              <button id="backToProjectsBtn" class="btnSecondary" type="button">← Proyectos</button>
+              <div class="grow">
+                <h3 class="panelTitle" id="projectName">Proyecto</h3>
+                <p class="hint">Kanban del proyecto.</p>
+              </div>
+              <button id="renameProjectBtn" class="btnSecondary" type="button">Renombrar</button>
+              <button id="deleteProjectBtn" class="btnSecondary" type="button">Eliminar</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3 class="panelTitle">Nueva tarea</h3>
+            <form id="taskForm" class="row wrap">
+              <input
+                id="taskTitle"
+                class="input"
+                type="text"
+                placeholder="Título de la tarea…"
+                maxlength="140"
+                required
+              />
+              <label class="labelInline" for="taskStatus">Status</label>
+              <select id="taskStatus" class="select">
+                <option value="backlog">Backlog</option>
+                <option value="todo">Todo</option>
+                <option value="in_progress">In-Progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
+              </select>
+              <button class="btn" type="submit">Crear</button>
+            </form>
+            <p class="finePrint">Tip: podés mover tareas arrastrando entre columnas.</p>
+          </div>
+
+          <section class="kanban" aria-label="Kanban">
+          <div class="kanbanTop">
+            <button id="openBacklogBtn" class="btnSecondary" type="button">
+              Backlog <span id="count-backlog" class="pill">0</span>
+            </button>
+            <div class="kanbanSpacer"></div>
+            <button id="openDoneBtn" class="btnSecondary" type="button">
+              Done <span id="count-done" class="pill">0</span>
+            </button>
+          </div>
+
+          <div class="column" data-status="todo">
+            <div class="columnHeader">
+              <h3 class="columnTitle">Todo</h3>
+              <span id="count-todo" class="pill">0</span>
+            </div>
+            <div class="dropzone" data-status="todo" id="col-todo"></div>
+          </div>
+          <div class="column" data-status="in_progress">
+            <div class="columnHeader">
+              <h3 class="columnTitle">In-Progress</h3>
+              <span id="count-in_progress" class="pill">0</span>
+            </div>
+            <div class="dropzone" data-status="in_progress" id="col-in_progress"></div>
+          </div>
+          <div class="column" data-status="blocked">
+            <div class="columnHeader">
+              <h3 class="columnTitle">Blocked</h3>
+              <span id="count-blocked" class="pill">0</span>
+            </div>
+            <div class="dropzone" data-status="blocked" id="col-blocked"></div>
+          </div>
+          </section>
+
+          <div id="modalBacklog" class="modal hidden" role="dialog" aria-modal="true" aria-label="Backlog">
+            <div class="modalPanel">
+              <div class="modalHeader">
+                <h3 class="panelTitle">Backlog</h3>
+                <button id="closeBacklogBtn" class="btnSecondary" type="button">Cerrar</button>
+              </div>
+              <div class="dropzone modalDropzone" data-status="backlog" id="col-backlog"></div>
+            </div>
+          </div>
+
+          <div id="modalDone" class="modal hidden" role="dialog" aria-modal="true" aria-label="Done">
+            <div class="modalPanel">
+              <div class="modalHeader">
+                <h3 class="panelTitle">Done</h3>
+                <button id="closeDoneBtn" class="btnSecondary" type="button">Cerrar</button>
+              </div>
+              <div class="dropzone modalDropzone" data-status="done" id="col-done"></div>
+            </div>
+          </div>
+
+          <div id="modalTask" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar tarea">
+            <div class="modalPanel">
+              <div class="modalHeader">
+                <h3 class="panelTitle">Editar tarea</h3>
+                <button id="closeTaskBtn" class="btnSecondary" type="button">Cerrar</button>
+              </div>
+
+              <form id="taskEditForm" class="page">
+                <div>
+                  <label class="label" for="taskEditTitle">Título</label>
+                  <input id="taskEditTitle" class="input" type="text" maxlength="140" required />
+                </div>
+
+                <div>
+                  <label class="label" for="taskEditStatus">Status</label>
+                  <select id="taskEditStatus" class="select">
+                    <option value="backlog">Backlog</option>
+                    <option value="todo">Todo</option>
+                    <option value="in_progress">In-Progress</option>
+                    <option value="blocked">Blocked</option>
+                    <option value="done">Done</option>
+                  </select>
+                </div>
+
+                <div class="panel">
+                  <h4 class="panelTitle">Comentarios</h4>
+                  <div id="commentsList" class="commentsList" aria-label="Lista de comentarios"></div>
+
+                  <div class="row wrap">
+                    <input
+                      id="newCommentText"
+                      class="input"
+                      type="text"
+                      placeholder="Agregar comentario…"
+                      maxlength="280"
+                    />
+                    <button id="addCommentBtn" class="btn" type="button">Agregar</button>
+                  </div>
+                  <p class="finePrint">Los comentarios se guardan dentro de la tarea.</p>
+                </div>
+
+                <div class="row wrap">
+                  <button id="deleteTaskBtn" class="btnSecondary" type="button">Borrar tarea</button>
+                  <div class="kanbanSpacer"></div>
+                  <button class="btnSecondary" type="button" id="cancelTaskBtn">Cancelar</button>
+                  <button class="btn" type="submit">Guardar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
