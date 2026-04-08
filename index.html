@@ -279,7 +279,25 @@
 
           <section id="tabNotes" class="page hidden" aria-label="Notas">
             <div class="panel">
-              <h3 class="panelTitle">Notas</h3>
+              <div class="row wrap">
+                <div class="grow">
+                  <h3 class="panelTitle">Notas</h3>
+                  <p class="hint">Creá notas y editá en un popup.</p>
+                </div>
+                <button id="newNoteBtn" class="btn" type="button">Nueva nota</button>
+              </div>
+            </div>
+
+            <div id="notesList" class="notesList" aria-label="Lista de notas"></div>
+          </section>
+
+          <div id="modalNote" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar nota">
+            <div class="modalPanel">
+              <div class="modalHeader">
+                <h3 class="panelTitle" id="noteModalTitle">Nota</h3>
+                <button id="closeNoteBtn" class="btnSecondary" type="button">Cerrar</button>
+              </div>
+
               <form id="noteForm" class="page">
                 <div>
                   <label class="label" for="noteTitle">Título</label>
@@ -287,21 +305,28 @@
                 </div>
                 <div>
                   <label class="label" for="noteBody">Contenido</label>
-                  <textarea id="noteBody" class="input textarea" rows="8" placeholder="Escribí tus notas…"></textarea>
+                  <textarea id="noteBody" class="input textarea" rows="10" placeholder="Escribí tus notas…"></textarea>
                 </div>
                 <div>
                   <label class="label" for="noteTags">Tags (separados por coma)</label>
-                  <input id="noteTags" class="input" type="text" maxlength="240" placeholder="ej: idea, reunión, urgente" />
+                  <input
+                    id="noteTags"
+                    class="input"
+                    type="text"
+                    maxlength="240"
+                    placeholder="ej: idea, reunión, urgente"
+                  />
                 </div>
+
                 <div class="row wrap">
+                  <button id="deleteNoteBtn" class="btnSecondary" type="button">Borrar nota</button>
+                  <div class="kanbanSpacer"></div>
                   <button id="noteCancelBtn" class="btnSecondary" type="button">Cancelar</button>
-                  <button id="noteSaveBtn" class="btn" type="submit">Guardar nota</button>
+                  <button id="noteSaveBtn" class="btn" type="submit">Guardar</button>
                 </div>
               </form>
             </div>
-
-            <div id="notesList" class="notesList" aria-label="Lista de notas"></div>
-          </section>
+          </div>
         </section>
 
       </section>

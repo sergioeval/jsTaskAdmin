@@ -212,19 +212,22 @@ body.projectMode #page-project {
 
 .notesList {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.75rem;
+  align-items: start;
 }
 
 .noteCard {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.18);
-  padding: 1rem;
+  padding: 0.75rem 0.85rem;
 }
 
 .noteTitle {
   margin: 0 0 0.35rem;
   font-weight: 900;
+  font-size: 0.98rem;
 }
 
 .noteBody {
@@ -232,6 +235,10 @@ body.projectMode #page-project {
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .tagRow {
@@ -249,6 +256,11 @@ body.projectMode #page-project {
   font-weight: 900;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+#modalNote .modalPanel {
+  width: min(900px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
 }
 
 .projectList {

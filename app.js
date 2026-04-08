@@ -49,6 +49,12 @@ const tabNotesBtn = document.getElementById("tabNotesBtn");
 const tabTasks = document.getElementById("tabTasks");
 const tabNotes = document.getElementById("tabNotes");
 
+const newNoteBtn = document.getElementById("newNoteBtn");
+const modalNote = document.getElementById("modalNote");
+const closeNoteBtn = document.getElementById("closeNoteBtn");
+const deleteNoteBtn = document.getElementById("deleteNoteBtn");
+const noteModalTitle = document.getElementById("noteModalTitle");
+
 const noteForm = document.getElementById("noteForm");
 const noteTitle = document.getElementById("noteTitle");
 const noteBody = document.getElementById("noteBody");
@@ -109,6 +115,10 @@ function setModal(which, open) {
 
 function setTaskModal(open) {
   modalTask.classList.toggle("hidden", !open);
+}
+
+function setNoteModal(open) {
+  modalNote.classList.toggle("hidden", !open);
 }
 
 // localStorage stores strings only. Best practice here is to normalize the data:
@@ -869,7 +879,37 @@ function resetNoteForm() {
   noteTitle.value = "";
   noteBody.value = "";
   noteTags.value = "";
-  noteSaveBtn.textContent = "Guardar nota";
+  noteSaveBtn.textContent = "Guardar";
+  noteModalTitle.textContent = "Nueva nota";
+  deleteNoteBtn.disabled = true;
+}
+
+function openNoteEditor(noteId) {
+  if (!currentWorkspace) return;
+  const p = getCurrentProject(currentWorkspace);
+  const notes = Array.isArray(p.notes) ? p.notes : [];
+  const n = noteId ? notes.find((x) => x.id === noteId) : null;
+
+  if (n) {
+    editingNoteId = n.id;
+    noteTitle.value = n.title;
+    noteBody.value = n.body || "";
+    noteTags.value = Array.isArray(n.tags) ? n.tags.join(", ") : "";
+    noteSaveBtn.textContent = "Guardar";
+    noteModalTitle.textContent = "Editar nota";
+    deleteNoteBtn.disabled = false;
+  } else {
+    resetNoteForm();
+  }
+
+  setProjectTab("notes");
+  setNoteModal(true);
+  noteTitle.focus();
+}
+
+function closeNoteEditor() {
+  resetNoteForm();
+  setNoteModal(false);
 }
 
 function renderNotes(ws) {
@@ -917,15 +957,7 @@ function renderNotes(ws) {
     editBtn.type = "button";
     editBtn.className = "iconBtn";
     editBtn.textContent = "Editar";
-    editBtn.addEventListener("click", () => {
-      editingNoteId = n.id;
-      noteTitle.value = n.title;
-      noteBody.value = n.body || "";
-      noteTags.value = Array.isArray(n.tags) ? n.tags.join(", ") : "";
-      noteSaveBtn.textContent = "Guardar cambios";
-      setProjectTab("notes");
-      noteTitle.focus();
-    });
+    editBtn.addEventListener("click", () => openNoteEditor(n.id));
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
@@ -938,7 +970,7 @@ function renderNotes(ws) {
         ...proj,
         notes: (Array.isArray(proj.notes) ? proj.notes : []).filter((x) => x.id !== n.id),
       }));
-      if (editingNoteId === n.id) resetNoteForm();
+      if (editingNoteId === n.id) closeNoteEditor();
       toast("Nota borrada.");
     });
 
@@ -1215,7 +1247,13 @@ function goProject(projectId) {
 tabTasksBtn.addEventListener("click", () => setProjectTab("tasks"));
 tabNotesBtn.addEventListener("click", () => setProjectTab("notes"));
 
-noteCancelBtn.addEventListener("click", () => resetNoteForm());
+newNoteBtn.addEventListener("click", () => openNoteEditor(null));
+closeNoteBtn.addEventListener("click", () => closeNoteEditor());
+noteCancelBtn.addEventListener("click", () => closeNoteEditor());
+
+modalNote.addEventListener("click", (e) => {
+  if (e.target === modalNote) closeNoteEditor();
+});
 
 noteForm.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -1242,7 +1280,20 @@ noteForm.addEventListener("submit", (e) => {
   });
 
   toast(editingNoteId ? "Nota guardada." : "Nota creada.");
-  resetNoteForm();
+  closeNoteEditor();
+});
+
+deleteNoteBtn.addEventListener("click", () => {
+  if (!editingNoteId) return;
+  const ok = confirm("Borrar nota?");
+  if (!ok) return;
+  const id = editingNoteId;
+  updateProjectWithNotes((proj) => ({
+    ...proj,
+    notes: (Array.isArray(proj.notes) ? proj.notes : []).filter((x) => x.id !== id),
+  }));
+  toast("Nota borrada.");
+  closeNoteEditor();
 });
 
 openBacklogBtn.addEventListener("click", () => setModal("backlog", true));
@@ -1362,6 +1413,7 @@ window.addEventListener("keydown", (e) => {
   setModal("backlog", false);
   setModal("done", false);
   closeTaskEditor();
+  closeNoteEditor();
 });
 
 exportBtn.addEventListener("click", () => {
