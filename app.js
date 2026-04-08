@@ -42,6 +42,19 @@ const taskForm = document.getElementById("taskForm");
 const taskTitleInput = document.getElementById("taskTitle");
 const taskStatusSelect = document.getElementById("taskStatus");
 
+const tabTasksBtn = document.getElementById("tabTasksBtn");
+const tabNotesBtn = document.getElementById("tabNotesBtn");
+const tabTasks = document.getElementById("tabTasks");
+const tabNotes = document.getElementById("tabNotes");
+
+const noteForm = document.getElementById("noteForm");
+const noteTitle = document.getElementById("noteTitle");
+const noteBody = document.getElementById("noteBody");
+const noteTags = document.getElementById("noteTags");
+const noteCancelBtn = document.getElementById("noteCancelBtn");
+const noteSaveBtn = document.getElementById("noteSaveBtn");
+const notesList = document.getElementById("notesList");
+
 const exportBtn = document.getElementById("exportBtn");
 const importFile = document.getElementById("importFile");
 const importBtn = document.getElementById("importBtn");
@@ -106,6 +119,7 @@ const STORAGE = {
   projectsIndexKey: (u) => `u:${u}:projects`,
   projectKey: (u, projectId) => `u:${u}:project:${projectId}`,
   projectTasksKey: (u, projectId) => `u:${u}:tasks:${projectId}`,
+  projectNotesKey: (u, projectId) => `u:${u}:notes:${projectId}`,
 };
 
 function sanitizeUserNumber(raw) {
@@ -214,6 +228,28 @@ function saveProjectTasks(userNumber, projectId, tasks) {
   localStorage.setItem(STORAGE.projectTasksKey(userNumber, projectId), JSON.stringify(tasks));
 }
 
+function loadProjectNotes(userNumber, projectId) {
+  const raw = localStorage.getItem(STORAGE.projectNotesKey(userNumber, projectId));
+  const parsed = safeParseJson(raw);
+  const notes = Array.isArray(parsed) ? parsed : [];
+  return notes
+    .filter((n) => n && typeof n === "object")
+    .map((n) => ({
+      id: String(n.id || uuid()),
+      title: String(n.title || "").trim() || "Sin título",
+      body: String(n.body || ""),
+      tags: Array.isArray(n.tags)
+        ? n.tags.map((t) => String(t || "").trim()).filter((t) => t.length > 0)
+        : [],
+      createdAt: n.createdAt || nowIso(),
+      updatedAt: n.updatedAt || nowIso(),
+    }));
+}
+
+function saveProjectNotes(userNumber, projectId, notes) {
+  localStorage.setItem(STORAGE.projectNotesKey(userNumber, projectId), JSON.stringify(notes));
+}
+
 function ensureDefaultStorage(userNumber) {
   // Ensure schema and at least one project exist.
   if (!getUserSchemaVersion(userNumber)) setUserSchemaVersion(userNumber, 3);
@@ -225,6 +261,7 @@ function ensureDefaultStorage(userNumber) {
   saveProjectIds(userNumber, [p.id]);
   saveProject(userNumber, p);
   saveProjectTasks(userNumber, p.id, []);
+  saveProjectNotes(userNumber, p.id, []);
 }
 
 function buildWorkspaceSnapshot(userNumber) {
@@ -235,7 +272,8 @@ function buildWorkspaceSnapshot(userNumber) {
     const p = loadProject(userNumber, id);
     if (!p) continue;
     const tasks = loadProjectTasks(userNumber, id);
-    projects.push({ ...p, tasks });
+    const notes = loadProjectNotes(userNumber, id);
+    projects.push({ ...p, tasks, notes });
   }
   if (projects.length === 0) {
     // repair if index exists but projects missing
@@ -243,6 +281,7 @@ function buildWorkspaceSnapshot(userNumber) {
     saveProjectIds(userNumber, [p.id]);
     saveProject(userNumber, p);
     saveProjectTasks(userNumber, p.id, []);
+    saveProjectNotes(userNumber, p.id, []);
     return buildWorkspaceSnapshot(userNumber);
   }
 
@@ -305,6 +344,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
       const createdAt = p.createdAt || nowIso();
       const updatedAt = nowIso();
       const tasks = Array.isArray(p.tasks) ? p.tasks : [];
+      const notes = Array.isArray(p.notes) ? p.notes : [];
       const cleanTasks = tasks
         .filter((t) => t && typeof t === "object")
         .map((t) => ({
@@ -326,7 +366,20 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
           updatedAt: nowIso(),
         }));
 
-      return { id: projectId, name, createdAt, updatedAt, tasks: cleanTasks };
+      const cleanNotes = notes
+        .filter((n) => n && typeof n === "object")
+        .map((n) => ({
+          id: String(n.id || uuid()),
+          title: String(n.title || "").trim() || "Sin título",
+          body: String(n.body || ""),
+          tags: Array.isArray(n.tags)
+            ? n.tags.map((t) => String(t || "").trim()).filter((t) => t.length > 0)
+            : [],
+          createdAt: n.createdAt || nowIso(),
+          updatedAt: nowIso(),
+        }));
+
+      return { id: projectId, name, createdAt, updatedAt, tasks: cleanTasks, notes: cleanNotes };
     });
 
   clearUserStorage(userNumber);
@@ -338,6 +391,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
   for (const p of cleanProjects) {
     saveProject(userNumber, p);
     saveProjectTasks(userNumber, p.id, p.tasks);
+    saveProjectNotes(userNumber, p.id, p.notes || []);
   }
 }
 
@@ -360,6 +414,18 @@ function migrateLegacyBlobIfPresent(userNumber) {
 let currentWorkspace = null;
 let currentProjectId = null;
 let currentUserNumber = null;
+let currentProjectTab = "tasks";
+let editingNoteId = null;
+
+function setProjectTab(which) {
+  currentProjectTab = which === "notes" ? "notes" : "tasks";
+  tabTasksBtn.classList.toggle("active", currentProjectTab === "tasks");
+  tabNotesBtn.classList.toggle("active", currentProjectTab === "notes");
+  tabTasksBtn.setAttribute("aria-selected", String(currentProjectTab === "tasks"));
+  tabNotesBtn.setAttribute("aria-selected", String(currentProjectTab === "notes"));
+  tabTasks.classList.toggle("hidden", currentProjectTab !== "tasks");
+  tabNotes.classList.toggle("hidden", currentProjectTab !== "notes");
+}
 
 function setWorkspace(ws) {
   currentWorkspace = ws;
@@ -730,6 +796,132 @@ function renderProjectPage(ws) {
   const p = getCurrentProject(ws);
   projectNameEl.textContent = p?.name || "Proyecto";
   renderBoard(ws);
+  renderNotes(ws);
+  setProjectTab(currentProjectTab);
+}
+
+function parseTags(raw) {
+  const tags = String(raw || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+  // unique, preserve order, case-insensitive uniqueness
+  const seen = new Set();
+  const out = [];
+  for (const t of tags) {
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+
+function resetNoteForm() {
+  editingNoteId = null;
+  noteTitle.value = "";
+  noteBody.value = "";
+  noteTags.value = "";
+  noteSaveBtn.textContent = "Guardar nota";
+}
+
+function renderNotes(ws) {
+  if (!ws) return;
+  const p = getCurrentProject(ws);
+  if (!p) return;
+  const notes = Array.isArray(p.notes) ? p.notes : [];
+  notesList.innerHTML = "";
+
+  if (notes.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Sin notas todavía.";
+    notesList.appendChild(empty);
+    return;
+  }
+
+  const sorted = [...notes].sort((a, b) => {
+    const ta = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+    const tb = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+    return tb - ta;
+  });
+
+  for (const n of sorted) {
+    const card = document.createElement("div");
+    card.className = "noteCard";
+
+    const top = document.createElement("div");
+    top.className = "row wrap";
+
+    const left = document.createElement("div");
+    left.className = "grow";
+    const title = document.createElement("p");
+    title.className = "noteTitle";
+    title.textContent = n.title;
+    const meta = document.createElement("p");
+    meta.className = "taskSmall";
+    meta.textContent = new Date(n.updatedAt || n.createdAt).toLocaleString();
+    left.appendChild(title);
+    left.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "taskActions";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "iconBtn";
+    editBtn.textContent = "Editar";
+    editBtn.addEventListener("click", () => {
+      editingNoteId = n.id;
+      noteTitle.value = n.title;
+      noteBody.value = n.body || "";
+      noteTags.value = Array.isArray(n.tags) ? n.tags.join(", ") : "";
+      noteSaveBtn.textContent = "Guardar cambios";
+      setProjectTab("notes");
+      noteTitle.focus();
+    });
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "iconBtn";
+    delBtn.textContent = "Borrar";
+    delBtn.addEventListener("click", () => {
+      const ok = confirm("Borrar nota?");
+      if (!ok) return;
+      updateProjectWithNotes((proj) => ({
+        ...proj,
+        notes: (Array.isArray(proj.notes) ? proj.notes : []).filter((x) => x.id !== n.id),
+      }));
+      if (editingNoteId === n.id) resetNoteForm();
+      toast("Nota borrada.");
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    top.appendChild(left);
+    top.appendChild(actions);
+
+    const body = document.createElement("p");
+    body.className = "noteBody";
+    body.textContent = String(n.body || "");
+
+    card.appendChild(top);
+    if (String(n.body || "").trim().length > 0) card.appendChild(body);
+
+    const tags = Array.isArray(n.tags) ? n.tags : [];
+    if (tags.length > 0) {
+      const tagRow = document.createElement("div");
+      tagRow.className = "tagRow";
+      for (const t of tags) {
+        const chip = document.createElement("span");
+        chip.className = "tag";
+        chip.textContent = t;
+        tagRow.appendChild(chip);
+      }
+      card.appendChild(tagRow);
+    }
+
+    notesList.appendChild(card);
+  }
 }
 
 function downloadJson(filename, obj) {
@@ -767,6 +959,8 @@ function logout() {
   currentWorkspace = null;
   currentProjectId = null;
   currentUserNumber = null;
+  currentProjectTab = "tasks";
+  resetNoteForm();
   setPage("projects");
   setView(false);
   toast("Sesión cerrada.");
@@ -795,6 +989,7 @@ newProjectBtn.addEventListener("click", () => {
   saveProjectIds(currentUserNumber, [...ids, p.id]);
   saveProject(currentUserNumber, p);
   saveProjectTasks(currentUserNumber, p.id, []);
+  saveProjectNotes(currentUserNumber, p.id, []);
 
   const next = buildWorkspaceSnapshot(currentUserNumber);
   currentProjectId = p.id;
@@ -831,6 +1026,7 @@ function deleteProject(projectId) {
   saveProjectIds(currentUserNumber, ids);
   localStorage.removeItem(STORAGE.projectKey(currentUserNumber, projectId));
   localStorage.removeItem(STORAGE.projectTasksKey(currentUserNumber, projectId));
+  localStorage.removeItem(STORAGE.projectNotesKey(currentUserNumber, projectId));
 
   const next = buildWorkspaceSnapshot(currentUserNumber);
   if (currentProjectId === projectId) currentProjectId = next.projects[0].id;
@@ -861,7 +1057,18 @@ function updateProject(projectUpdater) {
   // Persist project meta and tasks separately.
   saveProject(currentUserNumber, { ...updated, updatedAt: nowIso() });
   saveProjectTasks(currentUserNumber, updated.id, updated.tasks);
+  // Notes are persisted separately (if present on the updated object).
+  if (Array.isArray(updated.notes)) saveProjectNotes(currentUserNumber, updated.id, updated.notes);
   setWorkspace(buildWorkspaceSnapshot(currentUserNumber));
+}
+
+function updateProjectWithNotes(projectUpdater) {
+  // Convenience wrapper for notes edits.
+  if (!currentUserNumber) return;
+  updateProject((p) => {
+    const notes = Array.isArray(p.notes) ? p.notes : loadProjectNotes(currentUserNumber, p.id);
+    return projectUpdater({ ...p, notes });
+  });
 }
 
 taskForm.addEventListener("submit", (e) => {
@@ -940,6 +1147,7 @@ function goProjects() {
   setPage("projects");
   setModal("backlog", false);
   setModal("done", false);
+  closeTaskEditor();
 }
 
 function goProject(projectId) {
@@ -953,6 +1161,39 @@ function goProject(projectId) {
   setPage("project");
   renderProjectPage(currentWorkspace);
 }
+
+tabTasksBtn.addEventListener("click", () => setProjectTab("tasks"));
+tabNotesBtn.addEventListener("click", () => setProjectTab("notes"));
+
+noteCancelBtn.addEventListener("click", () => resetNoteForm());
+
+noteForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!currentWorkspace || !currentUserNumber) return;
+  const title = String(noteTitle.value || "").trim();
+  if (!title) return;
+  const body = String(noteBody.value || "");
+  const tags = parseTags(noteTags.value);
+
+  updateProjectWithNotes((proj) => {
+    const existing = Array.isArray(proj.notes) ? proj.notes : [];
+    const now = nowIso();
+    if (editingNoteId) {
+      return {
+        ...proj,
+        updatedAt: now,
+        notes: existing.map((n) =>
+          n.id === editingNoteId ? { ...n, title, body, tags, updatedAt: now } : n
+        ),
+      };
+    }
+    const note = { id: uuid(), title, body, tags, createdAt: now, updatedAt: now };
+    return { ...proj, updatedAt: now, notes: [note, ...existing] };
+  });
+
+  toast(editingNoteId ? "Nota guardada." : "Nota creada.");
+  resetNoteForm();
+});
 
 openBacklogBtn.addEventListener("click", () => setModal("backlog", true));
 openDoneBtn.addEventListener("click", () => setModal("done", true));

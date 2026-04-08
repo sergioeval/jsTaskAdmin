@@ -91,7 +91,17 @@
             </div>
           </div>
 
-          <div class="panel">
+          <div class="tabs" role="tablist" aria-label="Pestañas del proyecto">
+            <button id="tabTasksBtn" class="tab active" type="button" role="tab" aria-selected="true">
+              Tareas
+            </button>
+            <button id="tabNotesBtn" class="tab" type="button" role="tab" aria-selected="false">
+              Notas
+            </button>
+          </div>
+
+          <section id="tabTasks" class="page" aria-label="Tareas">
+            <div class="panel">
             <h3 class="panelTitle">Nueva tarea</h3>
             <form id="taskForm" class="row wrap">
               <input
@@ -237,6 +247,33 @@
             </div>
           </div>
         </section>
+          </section>
+
+          <section id="tabNotes" class="page hidden" aria-label="Notas">
+            <div class="panel">
+              <h3 class="panelTitle">Notas</h3>
+              <form id="noteForm" class="page">
+                <div>
+                  <label class="label" for="noteTitle">Título</label>
+                  <input id="noteTitle" class="input" type="text" maxlength="140" placeholder="Título…" required />
+                </div>
+                <div>
+                  <label class="label" for="noteBody">Contenido</label>
+                  <textarea id="noteBody" class="input textarea" rows="8" placeholder="Escribí tus notas…"></textarea>
+                </div>
+                <div>
+                  <label class="label" for="noteTags">Tags (separados por coma)</label>
+                  <input id="noteTags" class="input" type="text" maxlength="240" placeholder="ej: idea, reunión, urgente" />
+                </div>
+                <div class="row wrap">
+                  <button id="noteCancelBtn" class="btnSecondary" type="button">Cancelar</button>
+                  <button id="noteSaveBtn" class="btn" type="submit">Guardar nota</button>
+                </div>
+              </form>
+            </div>
+
+            <div id="notesList" class="notesList" aria-label="Lista de notas"></div>
+          </section>
 
       </section>
     </main>
