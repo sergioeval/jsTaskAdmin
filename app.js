@@ -558,6 +558,13 @@ function renderProjectsPage(ws) {
   }
 }
 
+function checklistProgress(task) {
+  const items = Array.isArray(task?.checklist) ? task.checklist : [];
+  const total = items.length;
+  const done = items.reduce((acc, x) => acc + (x?.done ? 1 : 0), 0);
+  return { done, total };
+}
+
 function taskCard(task) {
   const el = document.createElement("div");
   el.className = "task";
@@ -585,6 +592,18 @@ function taskCard(task) {
   badge.textContent = String(prio);
   badge.title = `Prioridad ${prio} (1 = más importante)`;
 
+  const { done, total } = checklistProgress(task);
+  const checklistBadge =
+    total > 0
+      ? (() => {
+          const b = document.createElement("span");
+          b.className = "checklistBadge";
+          b.textContent = `✓ ${done}/${total}`;
+          b.title = "Progreso del checklist";
+          return b;
+        })()
+      : null;
+
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "iconBtn";
@@ -592,6 +611,7 @@ function taskCard(task) {
   editBtn.addEventListener("click", () => openTaskEditor(task.id));
 
   actions.appendChild(badge);
+  if (checklistBadge) actions.appendChild(checklistBadge);
   actions.appendChild(editBtn);
 
   meta.appendChild(small);
