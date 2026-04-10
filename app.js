@@ -908,7 +908,7 @@ function renderBoard(ws) {
         }
         columns[s].appendChild(taskCard(t));
       }
-      return;
+      continue;
     }
 
     for (const t of byStatus[s]) columns[s].appendChild(taskCard(t));
