@@ -292,12 +292,35 @@ body.projectMode #page-project {
   color: var(--text);
 }
 
-#modalMindMap .modalPanel {
-  width: calc(100vw - 2rem);
-  max-height: calc(100vh - 2rem);
+.mindMapPickerRow {
+  align-items: center;
 }
 
-#modalMindMap .mindMapEdgeRow .input {
+.mindMapSelect {
+  width: auto;
+  min-width: min(280px, 100%);
+  max-width: 100%;
+}
+
+.mindMapEditorSection .page {
+  gap: 0.9rem;
+}
+
+.mindMapTools {
+  margin-top: 0;
+}
+
+#mindMapEditorSection .input,
+#mindMapEditorSection .textarea,
+#mindMapEditorSection .select {
+  width: 100%;
+}
+
+#mindMapEditorSection .row.wrap .input {
+  min-width: 180px;
+}
+
+#mindMapEditorSection .mindMapEdgeRow .input {
   flex: 1;
   min-width: 200px;
 }

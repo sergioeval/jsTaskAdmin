@@ -68,9 +68,8 @@ const noteSaveBtn = document.getElementById("noteSaveBtn");
 const notesList = document.getElementById("notesList");
 
 const newMindMapBtn = document.getElementById("newMindMapBtn");
-const mindMapsList = document.getElementById("mindMapsList");
-const modalMindMap = document.getElementById("modalMindMap");
-const closeMindMapBtn = document.getElementById("closeMindMapBtn");
+const mindMapSelect = document.getElementById("mindMapSelect");
+const mindMapEditorSection = document.getElementById("mindMapEditorSection");
 const mindMapNameInput = document.getElementById("mindMapNameInput");
 const mindMapSaveNameBtn = document.getElementById("mindMapSaveNameBtn");
 const mindMapDeleteMapBtn = document.getElementById("mindMapDeleteMapBtn");
@@ -140,10 +139,6 @@ function setTaskModal(open) {
 
 function setNoteModal(open) {
   modalNote.classList.toggle("hidden", !open);
-}
-
-function setMindMapModal(open) {
-  modalMindMap.classList.toggle("hidden", !open);
 }
 
 // localStorage stores strings only. Best practice here is to normalize the data:
@@ -588,9 +583,31 @@ let editingMindMapId = null;
 let mindMapWorkingCopy = null;
 let mindMapSelectedNodeId = null;
 let mindMapDrag = null;
+let mindMapDragListenersAttached = false;
+/** After creating a map, select it once `renderMindMaps` rebuilds the dropdown. */
+let pendingMindMapSelectId = null;
+
+function attachMindMapDragListeners() {
+  if (mindMapDragListenersAttached) return;
+  document.addEventListener("mousemove", onMindMapMouseMove);
+  document.addEventListener("mouseup", onMindMapMouseUp);
+  mindMapDragListenersAttached = true;
+}
+
+function detachMindMapDragListeners() {
+  if (!mindMapDragListenersAttached) return;
+  document.removeEventListener("mousemove", onMindMapMouseMove);
+  document.removeEventListener("mouseup", onMindMapMouseUp);
+  mindMapDragListenersAttached = false;
+  mindMapDrag = null;
+}
+
+function setMindMapEditorVisible(show) {
+  if (mindMapEditorSection) mindMapEditorSection.classList.toggle("hidden", !show);
+}
 
 function setProjectTab(which) {
-  if (which !== "mindmaps" && editingMindMapId) closeMindMapEditor();
+  if (which !== "mindmaps") detachMindMapDragListeners();
 
   if (which === "notes") currentProjectTab = "notes";
   else if (which === "mindmaps") currentProjectTab = "mindmaps";
@@ -605,6 +622,11 @@ function setProjectTab(which) {
   tabTasks.classList.toggle("hidden", currentProjectTab !== "tasks");
   tabNotes.classList.toggle("hidden", currentProjectTab !== "notes");
   tabMindMaps.classList.toggle("hidden", currentProjectTab !== "mindmaps");
+
+  if (which === "mindmaps" && editingMindMapId && mindMapWorkingCopy) {
+    attachMindMapDragListeners();
+    renderMindMapCanvas();
+  }
 }
 
 function normalizeTag(t) {
@@ -1473,105 +1495,86 @@ function onMindMapMouseUp() {
   }
 }
 
-function openMindMapEditor(mapId) {
-  if (!currentWorkspace || !currentUserNumber) return;
+function loadMindMapForEditing(mapId) {
+  if (!currentWorkspace || !currentUserNumber || !mapId) return;
   const p = getCurrentProject(currentWorkspace);
   const list = Array.isArray(p.mindMaps) ? p.mindMaps : [];
   const m = list.find((x) => x.id === mapId);
-  if (!m) return;
+  if (!m) {
+    unloadMindMapEditor();
+    return;
+  }
 
+  detachMindMapDragListeners();
   editingMindMapId = mapId;
   mindMapWorkingCopy = sanitizeMindMap(JSON.parse(JSON.stringify(m)));
   mindMapSelectedNodeId =
     mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
   if (mindMapNameInput) mindMapNameInput.value = mindMapWorkingCopy.name;
   syncMindMapNodeLabelField();
-  setMindMapModal(true);
+  setMindMapEditorVisible(true);
   renderMindMapCanvas();
-  document.addEventListener("mousemove", onMindMapMouseMove);
-  document.addEventListener("mouseup", onMindMapMouseUp);
+  if (currentProjectTab === "mindmaps") attachMindMapDragListeners();
 }
 
-function closeMindMapEditor() {
-  document.removeEventListener("mousemove", onMindMapMouseMove);
-  document.removeEventListener("mouseup", onMindMapMouseUp);
-  mindMapDrag = null;
+function unloadMindMapEditor() {
+  detachMindMapDragListeners();
   editingMindMapId = null;
   mindMapWorkingCopy = null;
   mindMapSelectedNodeId = null;
-  setMindMapModal(false);
+  if (mindMapSvg) mindMapSvg.innerHTML = "";
+  if (mindMapNodesLayer) mindMapNodesLayer.innerHTML = "";
+  if (mindMapNameInput) mindMapNameInput.value = "";
+  if (mindMapNodeLabelInput) mindMapNodeLabelInput.value = "";
+  syncMindMapEdgeLabelField();
+  setMindMapEditorVisible(false);
 }
 
 function renderMindMaps(ws) {
-  if (!mindMapsList) return;
+  if (!mindMapSelect) return;
   if (!ws) return;
   const p = getCurrentProject(ws);
   if (!p) return;
-  mindMapsList.innerHTML = "";
   const maps = Array.isArray(p.mindMaps) ? p.mindMaps : [];
+  const sorted = [...maps].sort((a, b) => a.name.localeCompare(b.name, "es"));
 
-  if (maps.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "hint";
-    empty.textContent = "Sin mapas todavía. Creá uno con «Nuevo mapa».";
-    mindMapsList.appendChild(empty);
+  const prevValue = mindMapSelect.value;
+  const preferred =
+    pendingMindMapSelectId ||
+    (prevValue && maps.some((m) => m.id === prevValue) ? prevValue : "") ||
+    (editingMindMapId && maps.some((m) => m.id === editingMindMapId) ? editingMindMapId : "") ||
+    "";
+  pendingMindMapSelectId = null;
+
+  mindMapSelect.innerHTML = "";
+  const optEmpty = document.createElement("option");
+  optEmpty.value = "";
+  optEmpty.textContent = maps.length ? "— Elegí un mapa —" : "Sin mapas (creá uno nuevo)";
+  mindMapSelect.appendChild(optEmpty);
+
+  for (const m of sorted) {
+    const o = document.createElement("option");
+    o.value = m.id;
+    const nn = Array.isArray(m.nodes) ? m.nodes.length : 0;
+    o.textContent = `${m.name} (${nn} nodos)`;
+    mindMapSelect.appendChild(o);
+  }
+
+  const keep = preferred && maps.some((m) => m.id === preferred) ? preferred : "";
+
+  mindMapSelect.value = keep || "";
+
+  if (!keep) {
+    unloadMindMapEditor();
     return;
   }
 
-  const sorted = [...maps].sort((a, b) => {
-    const ta = Date.parse(a.updatedAt || a.createdAt || "") || 0;
-    const tb = Date.parse(b.updatedAt || b.createdAt || "") || 0;
-    return tb - ta;
-  });
-
-  for (const m of sorted) {
-    const card = document.createElement("div");
-    card.className = "noteCard";
-
-    const top = document.createElement("div");
-    top.className = "row wrap";
-
-    const left = document.createElement("div");
-    left.className = "grow";
-    const title = document.createElement("p");
-    title.className = "noteTitle";
-    title.textContent = m.name;
-    const meta = document.createElement("p");
-    meta.className = "taskSmall";
-    const nn = Array.isArray(m.nodes) ? m.nodes.length : 0;
-    meta.textContent = `${nn} nodos · ${new Date(m.updatedAt || m.createdAt).toLocaleString()}`;
-    left.appendChild(title);
-    left.appendChild(meta);
-
-    const actions = document.createElement("div");
-    actions.className = "taskActions";
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "iconBtn";
-    editBtn.textContent = "Abrir";
-    editBtn.addEventListener("click", () => openMindMapEditor(m.id));
-
-    const delBtn = document.createElement("button");
-    delBtn.type = "button";
-    delBtn.className = "iconBtn";
-    delBtn.textContent = "Borrar";
-    delBtn.addEventListener("click", () => {
-      const ok = confirm(`Eliminar mapa "${m.name}"?`);
-      if (!ok) return;
-      if (editingMindMapId === m.id) closeMindMapEditor();
-      updateProjectWithMindMaps((proj) => ({
-        ...proj,
-        mindMaps: (Array.isArray(proj.mindMaps) ? proj.mindMaps : []).filter((x) => x.id !== m.id),
-      }));
-      toast("Mapa borrado.");
-    });
-
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
-    top.appendChild(left);
-    top.appendChild(actions);
-    card.appendChild(top);
-    mindMapsList.appendChild(card);
+  if (editingMindMapId !== keep || !mindMapWorkingCopy) {
+    loadMindMapForEditing(keep);
+  } else {
+    setMindMapEditorVisible(true);
+    renderMindMapCanvas();
+    if (currentProjectTab === "mindmaps") attachMindMapDragListeners();
   }
 }
 
@@ -1612,7 +1615,7 @@ function logout() {
   currentUserNumber = null;
   currentProjectTab = "tasks";
   resetNoteForm();
-  closeMindMapEditor();
+  unloadMindMapEditor();
   setPage("projects");
   setView(false);
   toast("Sesión cerrada.");
@@ -1814,7 +1817,7 @@ function goProjects() {
   setModal("backlog", false);
   setModal("done", false);
   closeTaskEditor();
-  closeMindMapEditor();
+  unloadMindMapEditor();
 }
 
 function goProject(projectId) {
@@ -1824,6 +1827,7 @@ function goProject(projectId) {
     goProjects();
     return;
   }
+  if (currentProjectId !== projectId) unloadMindMapEditor();
   currentProjectId = projectId;
   setPage("project");
   renderProjectPage(currentWorkspace);
@@ -2002,7 +2006,6 @@ window.addEventListener("keydown", (e) => {
   setModal("done", false);
   closeTaskEditor();
   closeNoteEditor();
-  closeMindMapEditor();
 });
 
 newMindMapBtn.addEventListener("click", () => {
@@ -2011,16 +2014,22 @@ newMindMapBtn.addEventListener("click", () => {
   const trimmed = String(name || "").trim();
   if (!trimmed) return;
   const map = defaultMindMap(trimmed);
+  pendingMindMapSelectId = map.id;
   updateProjectWithMindMaps((proj) => ({
     ...proj,
     updatedAt: nowIso(),
     mindMaps: [map, ...(Array.isArray(proj.mindMaps) ? proj.mindMaps : [])],
   }));
   toast("Mapa creado.");
-  openMindMapEditor(map.id);
 });
 
-closeMindMapBtn.addEventListener("click", () => closeMindMapEditor());
+if (mindMapSelect) {
+  mindMapSelect.addEventListener("change", () => {
+    const id = mindMapSelect.value;
+    if (id) loadMindMapForEditing(id);
+    else unloadMindMapEditor();
+  });
+}
 
 mindMapSaveNameBtn.addEventListener("click", () => {
   if (!mindMapWorkingCopy || !mindMapNameInput) return;
@@ -2034,7 +2043,7 @@ mindMapDeleteMapBtn.addEventListener("click", () => {
   if (!id) return;
   const ok = confirm("Eliminar este mapa mental?");
   if (!ok) return;
-  closeMindMapEditor();
+  unloadMindMapEditor();
   updateProjectWithMindMaps((proj) => ({
     ...proj,
     mindMaps: (Array.isArray(proj.mindMaps) ? proj.mindMaps : []).filter((m) => m.id !== id),
@@ -2110,10 +2119,6 @@ mindMapDeleteNodeBtn.addEventListener("click", () => {
   renderMindMapCanvas();
   persistMindMapWorkingCopy();
   toast("Nodo eliminado.");
-});
-
-modalMindMap.addEventListener("click", (e) => {
-  if (e.target === modalMindMap) closeMindMapEditor();
 });
 
 mindMapInner.addEventListener("click", () => {
