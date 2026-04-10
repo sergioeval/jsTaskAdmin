@@ -297,6 +297,11 @@ body.projectMode #page-project {
   max-height: calc(100vh - 2rem);
 }
 
+#modalMindMap .mindMapEdgeRow .input {
+  flex: 1;
+  min-width: 200px;
+}
+
 .mindMapHelp {
   margin: 0 0 0.75rem;
 }
@@ -306,14 +311,18 @@ body.projectMode #page-project {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.22);
   overflow: auto;
-  max-height: min(560px, calc(100vh - 22rem));
-  min-height: 280px;
+  max-height: min(75vh, calc(100vh - 11rem));
+  min-height: min(520px, 55vh);
 }
 
 .mindMapInner {
   position: relative;
   width: 1200px;
-  height: 800px;
+  height: 1040px;
+}
+
+.mindMapEdgeRow {
+  margin-top: 0.65rem;
 }
 
 .mindMapSvg {

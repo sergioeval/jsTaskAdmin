@@ -76,6 +76,8 @@ const mindMapSaveNameBtn = document.getElementById("mindMapSaveNameBtn");
 const mindMapDeleteMapBtn = document.getElementById("mindMapDeleteMapBtn");
 const mindMapNodeLabelInput = document.getElementById("mindMapNodeLabelInput");
 const mindMapApplyLabelBtn = document.getElementById("mindMapApplyLabelBtn");
+const mindMapEdgeLabelInput = document.getElementById("mindMapEdgeLabelInput");
+const mindMapApplyEdgeBtn = document.getElementById("mindMapApplyEdgeBtn");
 const mindMapAddChildBtn = document.getElementById("mindMapAddChildBtn");
 const mindMapDeleteNodeBtn = document.getElementById("mindMapDeleteNodeBtn");
 const mindMapInner = document.getElementById("mindMapInner");
@@ -324,13 +326,20 @@ function sanitizeMindMap(mm) {
   let nodes = Array.isArray(mm?.nodes) ? mm.nodes : [];
   nodes = nodes
     .filter((n) => n && typeof n === "object")
-    .map((n) => ({
-      id: String(n.id || uuid()),
-      label: String(n.label || "").trim().slice(0, 200) || "Nodo",
-      x: clampMindCoord(n.x),
-      y: clampMindCoord(n.y),
-      parentId: n.parentId ? String(n.parentId) : null,
-    }));
+    .map((n) => {
+      const parentId = n.parentId ? String(n.parentId) : null;
+      const edgeLabel = parentId
+        ? String(n.edgeLabel ?? n.linkLabel ?? "").trim().slice(0, 120)
+        : "";
+      return {
+        id: String(n.id || uuid()),
+        label: String(n.label || "").trim().slice(0, 200) || "Nodo",
+        x: clampMindCoord(n.x),
+        y: clampMindCoord(n.y),
+        parentId,
+        edgeLabel,
+      };
+    });
   const idSet = new Set(nodes.map((n) => n.id));
   for (const n of nodes) {
     if (n.parentId && !idSet.has(n.parentId)) n.parentId = null;
@@ -1320,10 +1329,25 @@ function persistMindMapWorkingCopy() {
   });
 }
 
+function syncMindMapEdgeLabelField() {
+  if (!mindMapEdgeLabelInput) return;
+  const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
+  if (!n || !n.parentId) {
+    mindMapEdgeLabelInput.value = "";
+    mindMapEdgeLabelInput.disabled = true;
+    mindMapEdgeLabelInput.placeholder = "Solo nodos con padre (seleccioná un hijo)";
+    return;
+  }
+  mindMapEdgeLabelInput.disabled = false;
+  mindMapEdgeLabelInput.placeholder = "Texto en la conexión (padre → este nodo)…";
+  mindMapEdgeLabelInput.value = String(n.edgeLabel || "");
+}
+
 function syncMindMapNodeLabelField() {
   if (!mindMapNodeLabelInput) return;
   const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
   mindMapNodeLabelInput.value = n ? n.label : "";
+  syncMindMapEdgeLabelField();
 }
 
 function getMindMapParentForChild() {
@@ -1360,14 +1384,39 @@ function renderMindMapCanvas() {
     if (!n.parentId) continue;
     const p = nodes.find((x) => x.id === n.parentId);
     if (!p) continue;
+    const x1 = p.x + MIND_NODE_W / 2;
+    const y1 = p.y + MIND_NODE_H;
+    const x2 = n.x + MIND_NODE_W / 2;
+    const y2 = n.y;
     const line = document.createElementNS(ns, "line");
-    line.setAttribute("x1", String(p.x + MIND_NODE_W / 2));
-    line.setAttribute("y1", String(p.y + MIND_NODE_H));
-    line.setAttribute("x2", String(n.x + MIND_NODE_W / 2));
-    line.setAttribute("y2", String(n.y));
+    line.setAttribute("x1", String(x1));
+    line.setAttribute("y1", String(y1));
+    line.setAttribute("x2", String(x2));
+    line.setAttribute("y2", String(y2));
     line.setAttribute("stroke", "rgba(255,255,255,0.22)");
     line.setAttribute("stroke-width", "2");
     mindMapSvg.appendChild(line);
+
+    const edgeText = String(n.edgeLabel || "").trim();
+    if (edgeText) {
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      const t = document.createElementNS(ns, "text");
+      t.setAttribute("x", String(mx));
+      t.setAttribute("y", String(my - 3));
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("dominant-baseline", "middle");
+      t.setAttribute("fill", "#d7def6");
+      t.setAttribute("font-size", "11");
+      t.setAttribute("font-weight", "700");
+      t.setAttribute("font-family", "ui-sans-serif, system-ui, sans-serif");
+      t.setAttribute("stroke", "#0b1020");
+      t.setAttribute("stroke-width", "5");
+      t.setAttribute("paint-order", "stroke fill");
+      const display = edgeText.length > 48 ? `${edgeText.slice(0, 46)}…` : edgeText;
+      t.textContent = display;
+      mindMapSvg.appendChild(t);
+    }
   }
 
   mindMapNodesLayer.innerHTML = "";
@@ -2005,6 +2054,22 @@ mindMapApplyLabelBtn.addEventListener("click", () => {
   persistMindMapWorkingCopy();
 });
 
+mindMapApplyEdgeBtn.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
+    toast("Seleccioná un nodo.");
+    return;
+  }
+  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
+  if (!n || !n.parentId) {
+    toast("La conexión solo aplica a nodos hijos (con padre).");
+    return;
+  }
+  n.edgeLabel = String(mindMapEdgeLabelInput?.value || "").trim().slice(0, 120);
+  renderMindMapCanvas();
+  persistMindMapWorkingCopy();
+  toast("Conexión actualizada.");
+});
+
 mindMapAddChildBtn.addEventListener("click", () => {
   if (!mindMapWorkingCopy) return;
   const parent = getMindMapParentForChild();
@@ -2017,6 +2082,7 @@ mindMapAddChildBtn.addEventListener("click", () => {
     x: pos.x,
     y: pos.y,
     parentId: parent.id,
+    edgeLabel: "",
   });
   // Keep parent selected so several clicks add siblings under the same node (not only under the last child).
   mindMapSelectedNodeId = parent.id;
