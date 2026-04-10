@@ -264,7 +264,8 @@ body.projectMode #page-project {
 }
 
 #modalNote .modalPanel {
-  width: min(1100px, calc(100vw - 2rem));
+  /* Match task editor: use near full-screen width. */
+  width: calc(100vw - 2rem);
   max-height: calc(100vh - 2rem);
 }
 
