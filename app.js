@@ -60,6 +60,7 @@ const noteForm = document.getElementById("noteForm");
 const noteTitle = document.getElementById("noteTitle");
 const noteBody = document.getElementById("noteBody");
 const noteTags = document.getElementById("noteTags");
+const noteTagsPicker = document.getElementById("noteTagsPicker");
 const noteCancelBtn = document.getElementById("noteCancelBtn");
 const noteSaveBtn = document.getElementById("noteSaveBtn");
 const notesList = document.getElementById("notesList");
@@ -940,11 +941,62 @@ function parseTags(raw) {
   return out;
 }
 
+function listProjectTags(project) {
+  const notes = Array.isArray(project?.notes) ? project.notes : [];
+  const tagSet = new Map(); // normalized -> display
+  for (const n of notes) {
+    const tags = Array.isArray(n.tags) ? n.tags : [];
+    for (const t of tags) {
+      const norm = normalizeTag(t);
+      const display = String(t || "").trim();
+      if (!norm || !display) continue;
+      if (!tagSet.has(norm)) tagSet.set(norm, display);
+    }
+  }
+  return [...tagSet.entries()]
+    .map(([norm, display]) => ({ norm, display }))
+    .sort((a, b) => a.display.localeCompare(b.display));
+}
+
+function toggleTagInInput(tagDisplay) {
+  const current = parseTags(noteTags?.value);
+  const norm = normalizeTag(tagDisplay);
+  const existsIdx = current.findIndex((t) => normalizeTag(t) === norm);
+  if (existsIdx >= 0) current.splice(existsIdx, 1);
+  else current.push(tagDisplay);
+  if (noteTags) noteTags.value = current.join(", ");
+}
+
+function renderNoteTagsPicker(project) {
+  if (!noteTagsPicker) return;
+  const all = listProjectTags(project);
+  noteTagsPicker.innerHTML = "";
+  if (all.length === 0) return;
+
+  const selected = new Set(parseTags(noteTags?.value).map((t) => normalizeTag(t)));
+
+  for (const t of all) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `tag tagPick${selected.has(t.norm) ? " isSelected" : ""}`;
+    btn.textContent = t.display;
+    btn.title = selected.has(t.norm) ? "Quitar tag" : "Agregar tag";
+    btn.addEventListener("click", () => {
+      toggleTagInInput(t.display);
+      renderNoteTagsPicker(project);
+      noteTags?.focus();
+    });
+    noteTagsPicker.appendChild(btn);
+  }
+}
+
 function resetNoteForm() {
   editingNoteId = null;
   noteTitle.value = "";
   noteBody.value = "";
   noteTags.value = "";
+  if (noteTags) noteTags.oninput = null;
+  if (noteTagsPicker) noteTagsPicker.innerHTML = "";
   noteSaveBtn.textContent = "Guardar";
   noteModalTitle.textContent = "Nueva nota";
   deleteNoteBtn.disabled = true;
@@ -967,6 +1019,11 @@ function openNoteEditor(noteId) {
   } else {
     resetNoteForm();
   }
+
+  if (noteTags) {
+    noteTags.oninput = () => renderNoteTagsPicker(p);
+  }
+  renderNoteTagsPicker(p);
 
   setProjectTab("notes");
   setNoteModal(true);
