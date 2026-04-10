@@ -46,8 +46,10 @@ const taskStatusSelect = document.getElementById("taskStatus");
 
 const tabTasksBtn = document.getElementById("tabTasksBtn");
 const tabNotesBtn = document.getElementById("tabNotesBtn");
+const tabMindMapsBtn = document.getElementById("tabMindMapsBtn");
 const tabTasks = document.getElementById("tabTasks");
 const tabNotes = document.getElementById("tabNotes");
+const tabMindMaps = document.getElementById("tabMindMaps");
 
 const newNoteBtn = document.getElementById("newNoteBtn");
 const modalNote = document.getElementById("modalNote");
@@ -64,6 +66,21 @@ const noteTagsPicker = document.getElementById("noteTagsPicker");
 const noteCancelBtn = document.getElementById("noteCancelBtn");
 const noteSaveBtn = document.getElementById("noteSaveBtn");
 const notesList = document.getElementById("notesList");
+
+const newMindMapBtn = document.getElementById("newMindMapBtn");
+const mindMapsList = document.getElementById("mindMapsList");
+const modalMindMap = document.getElementById("modalMindMap");
+const closeMindMapBtn = document.getElementById("closeMindMapBtn");
+const mindMapNameInput = document.getElementById("mindMapNameInput");
+const mindMapSaveNameBtn = document.getElementById("mindMapSaveNameBtn");
+const mindMapDeleteMapBtn = document.getElementById("mindMapDeleteMapBtn");
+const mindMapNodeLabelInput = document.getElementById("mindMapNodeLabelInput");
+const mindMapApplyLabelBtn = document.getElementById("mindMapApplyLabelBtn");
+const mindMapAddChildBtn = document.getElementById("mindMapAddChildBtn");
+const mindMapDeleteNodeBtn = document.getElementById("mindMapDeleteNodeBtn");
+const mindMapInner = document.getElementById("mindMapInner");
+const mindMapSvg = document.getElementById("mindMapSvg");
+const mindMapNodesLayer = document.getElementById("mindMapNodesLayer");
 
 const exportBtn = document.getElementById("exportBtn");
 const importFile = document.getElementById("importFile");
@@ -123,6 +140,10 @@ function setNoteModal(open) {
   modalNote.classList.toggle("hidden", !open);
 }
 
+function setMindMapModal(open) {
+  modalMindMap.classList.toggle("hidden", !open);
+}
+
 // localStorage stores strings only. Best practice here is to normalize the data:
 // keep smaller records per key (projects list, each project, each project's tasks).
 const STORAGE = {
@@ -134,6 +155,7 @@ const STORAGE = {
   projectKey: (u, projectId) => `u:${u}:project:${projectId}`,
   projectTasksKey: (u, projectId) => `u:${u}:tasks:${projectId}`,
   projectNotesKey: (u, projectId) => `u:${u}:notes:${projectId}`,
+  projectMindMapsKey: (u, projectId) => `u:${u}:mindmaps:${projectId}`,
 };
 
 function sanitizeUserNumber(raw) {
@@ -286,9 +308,78 @@ function saveProjectNotes(userNumber, projectId, notes) {
   localStorage.setItem(STORAGE.projectNotesKey(userNumber, projectId), JSON.stringify(notes));
 }
 
+const MIND_NODE_W = 132;
+const MIND_NODE_H = 52;
+const WORKSPACE_SCHEMA_VERSION = 4;
+
+function clampMindCoord(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(Math.max(0, Math.min(4000, n)));
+}
+
+function sanitizeMindMap(mm) {
+  const id = String(mm?.id || uuid());
+  const name = String(mm?.name || "Mapa").trim() || "Mapa";
+  let nodes = Array.isArray(mm?.nodes) ? mm.nodes : [];
+  nodes = nodes
+    .filter((n) => n && typeof n === "object")
+    .map((n) => ({
+      id: String(n.id || uuid()),
+      label: String(n.label || "").trim().slice(0, 200) || "Nodo",
+      x: clampMindCoord(n.x),
+      y: clampMindCoord(n.y),
+      parentId: n.parentId ? String(n.parentId) : null,
+    }));
+  const idSet = new Set(nodes.map((n) => n.id));
+  for (const n of nodes) {
+    if (n.parentId && !idSet.has(n.parentId)) n.parentId = null;
+  }
+  if (nodes.length === 0) {
+    const rid = uuid();
+    nodes.push({ id: rid, label: "Central", x: 480, y: 260, parentId: null });
+  }
+  if (!nodes.some((n) => n.parentId === null)) {
+    nodes[0].parentId = null;
+  }
+  return {
+    id,
+    name,
+    nodes,
+    createdAt: mm?.createdAt || nowIso(),
+    updatedAt: mm?.updatedAt || nowIso(),
+  };
+}
+
+function defaultMindMap(name) {
+  const rootId = uuid();
+  return sanitizeMindMap({
+    id: uuid(),
+    name: String(name || "").trim() || "Mapa",
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    nodes: [{ id: rootId, label: "Central", x: 480, y: 260, parentId: null }],
+  });
+}
+
+function loadProjectMindMaps(userNumber, projectId) {
+  const raw = localStorage.getItem(STORAGE.projectMindMapsKey(userNumber, projectId));
+  const parsed = safeParseJson(raw);
+  const maps = Array.isArray(parsed) ? parsed : [];
+  return maps.filter((m) => m && typeof m === "object").map((m) => sanitizeMindMap(m));
+}
+
+function saveProjectMindMaps(userNumber, projectId, mindMaps) {
+  localStorage.setItem(STORAGE.projectMindMapsKey(userNumber, projectId), JSON.stringify(mindMaps));
+}
+
 function ensureDefaultStorage(userNumber) {
   // Ensure schema and at least one project exist.
-  if (!getUserSchemaVersion(userNumber)) setUserSchemaVersion(userNumber, 3);
+  const existingSchema = getUserSchemaVersion(userNumber);
+  if (!existingSchema) setUserSchemaVersion(userNumber, WORKSPACE_SCHEMA_VERSION);
+  else if (existingSchema < WORKSPACE_SCHEMA_VERSION) {
+    setUserSchemaVersion(userNumber, WORKSPACE_SCHEMA_VERSION);
+  }
 
   const ids = listProjectIds(userNumber);
   if (ids.length > 0) return;
@@ -298,6 +389,7 @@ function ensureDefaultStorage(userNumber) {
   saveProject(userNumber, p);
   saveProjectTasks(userNumber, p.id, []);
   saveProjectNotes(userNumber, p.id, []);
+  saveProjectMindMaps(userNumber, p.id, []);
 }
 
 function buildWorkspaceSnapshot(userNumber) {
@@ -309,7 +401,8 @@ function buildWorkspaceSnapshot(userNumber) {
     if (!p) continue;
     const tasks = loadProjectTasks(userNumber, id);
     const notes = loadProjectNotes(userNumber, id);
-    projects.push({ ...p, tasks, notes });
+    const mindMaps = loadProjectMindMaps(userNumber, id);
+    projects.push({ ...p, tasks, notes, mindMaps });
   }
   if (projects.length === 0) {
     // repair if index exists but projects missing
@@ -318,11 +411,12 @@ function buildWorkspaceSnapshot(userNumber) {
     saveProject(userNumber, p);
     saveProjectTasks(userNumber, p.id, []);
     saveProjectNotes(userNumber, p.id, []);
+    saveProjectMindMaps(userNumber, p.id, []);
     return buildWorkspaceSnapshot(userNumber);
   }
 
   return {
-    schemaVersion: 3,
+    schemaVersion: WORKSPACE_SCHEMA_VERSION,
     userNumber,
     createdAt: projects.reduce((min, p) => (p.createdAt < min ? p.createdAt : min), projects[0].createdAt),
     updatedAt: nowIso(),
@@ -342,7 +436,7 @@ function clearUserStorage(userNumber) {
 }
 
 function importWorkspaceSnapshot(userNumber, snapshot) {
-  // Accept legacy formats and normalize into schemaVersion 3 storage.
+  // Accept legacy formats and normalize into schemaVersion 4 storage (tasks, notes, mind maps per project).
   const ws = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot : null;
   if (!ws) throw new Error("JSON inválido");
   if (String(ws.userNumber) !== String(userNumber)) throw new Error("Ese JSON es de otro usuario");
@@ -381,6 +475,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
       const updatedAt = nowIso();
       const tasks = Array.isArray(p.tasks) ? p.tasks : [];
       const notes = Array.isArray(p.notes) ? p.notes : [];
+      const mindMapsRaw = Array.isArray(p.mindMaps) ? p.mindMaps : [];
       const cleanTasks = tasks
         .filter((t) => t && typeof t === "object")
         .map((t) => ({
@@ -428,11 +523,23 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
           updatedAt: nowIso(),
         }));
 
-      return { id: projectId, name, createdAt, updatedAt, tasks: cleanTasks, notes: cleanNotes };
+      const cleanMindMaps = mindMapsRaw
+        .filter((m) => m && typeof m === "object")
+        .map((m) => sanitizeMindMap(m));
+
+      return {
+        id: projectId,
+        name,
+        createdAt,
+        updatedAt,
+        tasks: cleanTasks,
+        notes: cleanNotes,
+        mindMaps: cleanMindMaps,
+      };
     });
 
   clearUserStorage(userNumber);
-  setUserSchemaVersion(userNumber, 3);
+  setUserSchemaVersion(userNumber, WORKSPACE_SCHEMA_VERSION);
   saveProjectIds(
     userNumber,
     cleanProjects.map((p) => p.id)
@@ -441,6 +548,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
     saveProject(userNumber, p);
     saveProjectTasks(userNumber, p.id, p.tasks);
     saveProjectNotes(userNumber, p.id, p.notes || []);
+    saveProjectMindMaps(userNumber, p.id, p.mindMaps || []);
   }
 }
 
@@ -467,14 +575,27 @@ let currentProjectTab = "tasks";
 let editingNoteId = null;
 let currentNotesTag = "";
 
+let editingMindMapId = null;
+let mindMapWorkingCopy = null;
+let mindMapSelectedNodeId = null;
+let mindMapDrag = null;
+
 function setProjectTab(which) {
-  currentProjectTab = which === "notes" ? "notes" : "tasks";
+  if (which !== "mindmaps" && editingMindMapId) closeMindMapEditor();
+
+  if (which === "notes") currentProjectTab = "notes";
+  else if (which === "mindmaps") currentProjectTab = "mindmaps";
+  else currentProjectTab = "tasks";
+
   tabTasksBtn.classList.toggle("active", currentProjectTab === "tasks");
   tabNotesBtn.classList.toggle("active", currentProjectTab === "notes");
+  tabMindMapsBtn.classList.toggle("active", currentProjectTab === "mindmaps");
   tabTasksBtn.setAttribute("aria-selected", String(currentProjectTab === "tasks"));
   tabNotesBtn.setAttribute("aria-selected", String(currentProjectTab === "notes"));
+  tabMindMapsBtn.setAttribute("aria-selected", String(currentProjectTab === "mindmaps"));
   tabTasks.classList.toggle("hidden", currentProjectTab !== "tasks");
   tabNotes.classList.toggle("hidden", currentProjectTab !== "notes");
+  tabMindMaps.classList.toggle("hidden", currentProjectTab !== "mindmaps");
 }
 
 function normalizeTag(t) {
@@ -921,6 +1042,7 @@ function renderProjectPage(ws) {
   projectNameEl.textContent = p?.name || "Proyecto";
   renderBoard(ws);
   renderNotes(ws);
+  renderMindMaps(ws);
   setProjectTab(currentProjectTab);
 }
 
@@ -1163,6 +1285,233 @@ function renderNotes(ws) {
   }
 }
 
+function mindMapDescendantIds(rootId, nodes) {
+  const childrenByParent = new Map();
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    if (!childrenByParent.has(n.parentId)) childrenByParent.set(n.parentId, []);
+    childrenByParent.get(n.parentId).push(n.id);
+  }
+  const out = [];
+  const stack = [...(childrenByParent.get(rootId) || [])];
+  while (stack.length) {
+    const id = stack.pop();
+    out.push(id);
+    const ch = childrenByParent.get(id) || [];
+    for (const c of ch) stack.push(c);
+  }
+  return out;
+}
+
+function persistMindMapWorkingCopy() {
+  if (!currentUserNumber || !mindMapWorkingCopy) return;
+  const saved = sanitizeMindMap({
+    ...mindMapWorkingCopy,
+    nodes: mindMapWorkingCopy.nodes.map((n) => ({ ...n })),
+  });
+  mindMapWorkingCopy = saved;
+  updateProjectWithMindMaps((proj) => {
+    const list = Array.isArray(proj.mindMaps) ? proj.mindMaps : [];
+    return {
+      ...proj,
+      updatedAt: nowIso(),
+      mindMaps: list.map((m) => (m.id === saved.id ? saved : m)),
+    };
+  });
+}
+
+function syncMindMapNodeLabelField() {
+  if (!mindMapNodeLabelInput) return;
+  const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
+  mindMapNodeLabelInput.value = n ? n.label : "";
+}
+
+function getMindMapParentForChild() {
+  if (!mindMapWorkingCopy) return null;
+  const { nodes } = mindMapWorkingCopy;
+  if (mindMapSelectedNodeId) {
+    const n = nodes.find((x) => x.id === mindMapSelectedNodeId);
+    if (n) return n;
+  }
+  return nodes.find((x) => x.parentId === null) || nodes[0] || null;
+}
+
+function renderMindMapCanvas() {
+  if (!mindMapSvg || !mindMapNodesLayer || !mindMapWorkingCopy) return;
+  const ns = "http://www.w3.org/2000/svg";
+  mindMapSvg.innerHTML = "";
+  const { nodes } = mindMapWorkingCopy;
+
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const p = nodes.find((x) => x.id === n.parentId);
+    if (!p) continue;
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", String(p.x + MIND_NODE_W / 2));
+    line.setAttribute("y1", String(p.y + MIND_NODE_H));
+    line.setAttribute("x2", String(n.x + MIND_NODE_W / 2));
+    line.setAttribute("y2", String(n.y));
+    line.setAttribute("stroke", "rgba(255,255,255,0.22)");
+    line.setAttribute("stroke-width", "2");
+    mindMapSvg.appendChild(line);
+  }
+
+  mindMapNodesLayer.innerHTML = "";
+  for (const n of nodes) {
+    const div = document.createElement("div");
+    div.className = `mindNode${mindMapSelectedNodeId === n.id ? " isSelected" : ""}`;
+    div.style.left = `${n.x}px`;
+    div.style.top = `${n.y}px`;
+    div.textContent = n.label;
+    div.dataset.nodeId = n.id;
+    div.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      mindMapSelectedNodeId = n.id;
+      syncMindMapNodeLabelField();
+      mindMapDrag = {
+        id: n.id,
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        nodeStartX: n.x,
+        nodeStartY: n.y,
+      };
+      renderMindMapCanvas();
+    });
+    div.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+    div.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      mindMapSelectedNodeId = n.id;
+      syncMindMapNodeLabelField();
+      mindMapNodeLabelInput?.focus();
+      renderMindMapCanvas();
+    });
+    mindMapNodesLayer.appendChild(div);
+  }
+}
+
+function onMindMapMouseMove(e) {
+  if (!mindMapDrag || !mindMapWorkingCopy) return;
+  const node = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapDrag.id);
+  if (!node) return;
+  const dx = e.clientX - mindMapDrag.startMouseX;
+  const dy = e.clientY - mindMapDrag.startMouseY;
+  node.x = clampMindCoord(mindMapDrag.nodeStartX + dx);
+  node.y = clampMindCoord(mindMapDrag.nodeStartY + dy);
+  renderMindMapCanvas();
+}
+
+function onMindMapMouseUp() {
+  if (mindMapDrag) {
+    mindMapDrag = null;
+    persistMindMapWorkingCopy();
+  }
+}
+
+function openMindMapEditor(mapId) {
+  if (!currentWorkspace || !currentUserNumber) return;
+  const p = getCurrentProject(currentWorkspace);
+  const list = Array.isArray(p.mindMaps) ? p.mindMaps : [];
+  const m = list.find((x) => x.id === mapId);
+  if (!m) return;
+
+  editingMindMapId = mapId;
+  mindMapWorkingCopy = sanitizeMindMap(JSON.parse(JSON.stringify(m)));
+  mindMapSelectedNodeId =
+    mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
+  if (mindMapNameInput) mindMapNameInput.value = mindMapWorkingCopy.name;
+  syncMindMapNodeLabelField();
+  setMindMapModal(true);
+  renderMindMapCanvas();
+  document.addEventListener("mousemove", onMindMapMouseMove);
+  document.addEventListener("mouseup", onMindMapMouseUp);
+}
+
+function closeMindMapEditor() {
+  document.removeEventListener("mousemove", onMindMapMouseMove);
+  document.removeEventListener("mouseup", onMindMapMouseUp);
+  mindMapDrag = null;
+  editingMindMapId = null;
+  mindMapWorkingCopy = null;
+  mindMapSelectedNodeId = null;
+  setMindMapModal(false);
+}
+
+function renderMindMaps(ws) {
+  if (!mindMapsList) return;
+  if (!ws) return;
+  const p = getCurrentProject(ws);
+  if (!p) return;
+  mindMapsList.innerHTML = "";
+  const maps = Array.isArray(p.mindMaps) ? p.mindMaps : [];
+
+  if (maps.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Sin mapas todavía. Creá uno con «Nuevo mapa».";
+    mindMapsList.appendChild(empty);
+    return;
+  }
+
+  const sorted = [...maps].sort((a, b) => {
+    const ta = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+    const tb = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+    return tb - ta;
+  });
+
+  for (const m of sorted) {
+    const card = document.createElement("div");
+    card.className = "noteCard";
+
+    const top = document.createElement("div");
+    top.className = "row wrap";
+
+    const left = document.createElement("div");
+    left.className = "grow";
+    const title = document.createElement("p");
+    title.className = "noteTitle";
+    title.textContent = m.name;
+    const meta = document.createElement("p");
+    meta.className = "taskSmall";
+    const nn = Array.isArray(m.nodes) ? m.nodes.length : 0;
+    meta.textContent = `${nn} nodos · ${new Date(m.updatedAt || m.createdAt).toLocaleString()}`;
+    left.appendChild(title);
+    left.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "taskActions";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "iconBtn";
+    editBtn.textContent = "Abrir";
+    editBtn.addEventListener("click", () => openMindMapEditor(m.id));
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "iconBtn";
+    delBtn.textContent = "Borrar";
+    delBtn.addEventListener("click", () => {
+      const ok = confirm(`Eliminar mapa "${m.name}"?`);
+      if (!ok) return;
+      if (editingMindMapId === m.id) closeMindMapEditor();
+      updateProjectWithMindMaps((proj) => ({
+        ...proj,
+        mindMaps: (Array.isArray(proj.mindMaps) ? proj.mindMaps : []).filter((x) => x.id !== m.id),
+      }));
+      toast("Mapa borrado.");
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    top.appendChild(left);
+    top.appendChild(actions);
+    card.appendChild(top);
+    mindMapsList.appendChild(card);
+  }
+}
+
 function downloadJson(filename, obj) {
   const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -1200,6 +1549,7 @@ function logout() {
   currentUserNumber = null;
   currentProjectTab = "tasks";
   resetNoteForm();
+  closeMindMapEditor();
   setPage("projects");
   setView(false);
   toast("Sesión cerrada.");
@@ -1229,6 +1579,7 @@ newProjectBtn.addEventListener("click", () => {
   saveProject(currentUserNumber, p);
   saveProjectTasks(currentUserNumber, p.id, []);
   saveProjectNotes(currentUserNumber, p.id, []);
+  saveProjectMindMaps(currentUserNumber, p.id, []);
 
   const next = buildWorkspaceSnapshot(currentUserNumber);
   currentProjectId = p.id;
@@ -1266,6 +1617,7 @@ function deleteProject(projectId) {
   localStorage.removeItem(STORAGE.projectKey(currentUserNumber, projectId));
   localStorage.removeItem(STORAGE.projectTasksKey(currentUserNumber, projectId));
   localStorage.removeItem(STORAGE.projectNotesKey(currentUserNumber, projectId));
+  localStorage.removeItem(STORAGE.projectMindMapsKey(currentUserNumber, projectId));
 
   const next = buildWorkspaceSnapshot(currentUserNumber);
   if (currentProjectId === projectId) currentProjectId = next.projects[0].id;
@@ -1298,6 +1650,7 @@ function updateProject(projectUpdater) {
   saveProjectTasks(currentUserNumber, updated.id, updated.tasks);
   // Notes are persisted separately (if present on the updated object).
   if (Array.isArray(updated.notes)) saveProjectNotes(currentUserNumber, updated.id, updated.notes);
+  if (Array.isArray(updated.mindMaps)) saveProjectMindMaps(currentUserNumber, updated.id, updated.mindMaps);
   setWorkspace(buildWorkspaceSnapshot(currentUserNumber));
 }
 
@@ -1307,6 +1660,14 @@ function updateProjectWithNotes(projectUpdater) {
   updateProject((p) => {
     const notes = Array.isArray(p.notes) ? p.notes : loadProjectNotes(currentUserNumber, p.id);
     return projectUpdater({ ...p, notes });
+  });
+}
+
+function updateProjectWithMindMaps(projectUpdater) {
+  if (!currentUserNumber) return;
+  updateProject((p) => {
+    const mindMaps = Array.isArray(p.mindMaps) ? p.mindMaps : loadProjectMindMaps(currentUserNumber, p.id);
+    return projectUpdater({ ...p, mindMaps });
   });
 }
 
@@ -1390,6 +1751,7 @@ function goProjects() {
   setModal("backlog", false);
   setModal("done", false);
   closeTaskEditor();
+  closeMindMapEditor();
 }
 
 function goProject(projectId) {
@@ -1406,6 +1768,7 @@ function goProject(projectId) {
 
 tabTasksBtn.addEventListener("click", () => setProjectTab("tasks"));
 tabNotesBtn.addEventListener("click", () => setProjectTab("notes"));
+tabMindMapsBtn.addEventListener("click", () => setProjectTab("mindmaps"));
 
 notesTagFilter.addEventListener("change", () => setNotesTagFilter(notesTagFilter.value));
 
@@ -1576,6 +1939,106 @@ window.addEventListener("keydown", (e) => {
   setModal("done", false);
   closeTaskEditor();
   closeNoteEditor();
+  closeMindMapEditor();
+});
+
+newMindMapBtn.addEventListener("click", () => {
+  if (!currentWorkspace || !currentUserNumber) return;
+  const name = prompt("Nombre del mapa:");
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return;
+  const map = defaultMindMap(trimmed);
+  updateProjectWithMindMaps((proj) => ({
+    ...proj,
+    updatedAt: nowIso(),
+    mindMaps: [map, ...(Array.isArray(proj.mindMaps) ? proj.mindMaps : [])],
+  }));
+  toast("Mapa creado.");
+  openMindMapEditor(map.id);
+});
+
+closeMindMapBtn.addEventListener("click", () => closeMindMapEditor());
+
+mindMapSaveNameBtn.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapNameInput) return;
+  mindMapWorkingCopy.name = String(mindMapNameInput.value || "").trim().slice(0, 140) || "Mapa";
+  persistMindMapWorkingCopy();
+  toast("Nombre guardado.");
+});
+
+mindMapDeleteMapBtn.addEventListener("click", () => {
+  const id = editingMindMapId;
+  if (!id) return;
+  const ok = confirm("Eliminar este mapa mental?");
+  if (!ok) return;
+  closeMindMapEditor();
+  updateProjectWithMindMaps((proj) => ({
+    ...proj,
+    mindMaps: (Array.isArray(proj.mindMaps) ? proj.mindMaps : []).filter((m) => m.id !== id),
+  }));
+  toast("Mapa eliminado.");
+});
+
+mindMapApplyLabelBtn.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
+    toast("Seleccioná un nodo.");
+    return;
+  }
+  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
+  if (!n) return;
+  n.label = String(mindMapNodeLabelInput?.value || "").trim().slice(0, 200) || "Nodo";
+  renderMindMapCanvas();
+  persistMindMapWorkingCopy();
+});
+
+mindMapAddChildBtn.addEventListener("click", () => {
+  if (!mindMapWorkingCopy) return;
+  const parent = getMindMapParentForChild();
+  if (!parent) return;
+  const nid = uuid();
+  mindMapWorkingCopy.nodes.push({
+    id: nid,
+    label: "Nuevo",
+    x: clampMindCoord(parent.x + 24),
+    y: clampMindCoord(parent.y + MIND_NODE_H + 36),
+    parentId: parent.id,
+  });
+  mindMapSelectedNodeId = nid;
+  syncMindMapNodeLabelField();
+  renderMindMapCanvas();
+  persistMindMapWorkingCopy();
+  toast("Nodo agregado.");
+});
+
+mindMapDeleteNodeBtn.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
+    toast("Seleccioná un nodo.");
+    return;
+  }
+  if (mindMapWorkingCopy.nodes.length <= 1) {
+    toast("No podés borrar el único nodo.");
+    return;
+  }
+  const id = mindMapSelectedNodeId;
+  const toRemove = new Set([id, ...mindMapDescendantIds(id, mindMapWorkingCopy.nodes)]);
+  mindMapWorkingCopy.nodes = mindMapWorkingCopy.nodes.filter((n) => !toRemove.has(n.id));
+  mindMapSelectedNodeId =
+    mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
+  syncMindMapNodeLabelField();
+  renderMindMapCanvas();
+  persistMindMapWorkingCopy();
+  toast("Nodo eliminado.");
+});
+
+modalMindMap.addEventListener("click", (e) => {
+  if (e.target === modalMindMap) closeMindMapEditor();
+});
+
+mindMapInner.addEventListener("click", () => {
+  if (!mindMapWorkingCopy) return;
+  mindMapSelectedNodeId = null;
+  syncMindMapNodeLabelField();
+  renderMindMapCanvas();
 });
 
 exportBtn.addEventListener("click", () => {

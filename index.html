@@ -98,6 +98,9 @@
             <button id="tabNotesBtn" class="tab" type="button" role="tab" aria-selected="false">
               Notas
             </button>
+            <button id="tabMindMapsBtn" class="tab" type="button" role="tab" aria-selected="false">
+              MindMaps
+            </button>
           </div>
 
           <section id="tabTasks" class="page" aria-label="Tareas">
@@ -297,6 +300,19 @@
             <div id="notesList" class="notesList" aria-label="Lista de notas"></div>
           </section>
 
+          <section id="tabMindMaps" class="page hidden" aria-label="Mapas mentales">
+            <div class="panel">
+              <div class="row wrap">
+                <div class="grow">
+                  <h3 class="panelTitle">MindMaps</h3>
+                  <p class="hint">Varios mapas por proyecto; el contenido se guarda en tu workspace.</p>
+                </div>
+                <button id="newMindMapBtn" class="btn" type="button">Nuevo mapa</button>
+              </div>
+            </div>
+            <div id="mindMapsList" class="notesList" aria-label="Lista de mapas mentales"></div>
+          </section>
+
           <div id="modalNote" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar nota">
             <div class="modalPanel">
               <div class="modalHeader">
@@ -332,6 +348,54 @@
                   <button id="noteSaveBtn" class="btn" type="submit">Guardar</button>
                 </div>
               </form>
+            </div>
+          </div>
+
+          <div id="modalMindMap" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar mapa mental">
+            <div class="modalPanel">
+              <div class="modalHeader">
+                <h3 class="panelTitle">Mapa mental</h3>
+                <button id="closeMindMapBtn" class="btnSecondary" type="button">Cerrar</button>
+              </div>
+              <div class="page">
+                <div class="row wrap">
+                  <div class="grow">
+                    <label class="label" for="mindMapNameInput">Nombre del mapa</label>
+                    <input
+                      id="mindMapNameInput"
+                      class="input"
+                      type="text"
+                      maxlength="140"
+                      placeholder="Nombre…"
+                    />
+                  </div>
+                  <button id="mindMapSaveNameBtn" class="btnSecondary" type="button">Guardar nombre</button>
+                  <button id="mindMapDeleteMapBtn" class="btnSecondary" type="button">Eliminar mapa</button>
+                </div>
+                <div class="panel">
+                  <p class="finePrint mindMapHelp">
+                    Clic en un nodo para seleccionarlo. Arrastrá para mover. Agregá hijos o editá el texto abajo.
+                  </p>
+                  <div class="row wrap">
+                    <input
+                      id="mindMapNodeLabelInput"
+                      class="input"
+                      type="text"
+                      maxlength="200"
+                      placeholder="Texto del nodo seleccionado…"
+                    />
+                    <button id="mindMapApplyLabelBtn" class="btnSecondary" type="button">Aplicar texto</button>
+                    <button id="mindMapAddChildBtn" class="btn" type="button">Agregar hijo</button>
+                    <button id="mindMapDeleteNodeBtn" class="btnSecondary" type="button">Eliminar nodo</button>
+                  </div>
+                </div>
+                <div id="mindMapViewport" class="mindMapViewport">
+                  <div id="mindMapInner" class="mindMapInner">
+                    <svg id="mindMapSvg" class="mindMapSvg" aria-hidden="true"></svg>
+                    <div id="mindMapNodesLayer" class="mindMapNodesLayer"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
