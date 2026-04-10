@@ -1336,6 +1336,20 @@ function getMindMapParentForChild() {
   return nodes.find((x) => x.parentId === null) || nodes[0] || null;
 }
 
+/** Place each new sibling offset so nodes do not stack (was mistaken for "overwrite"). */
+function mindMapNextChildPosition(parent) {
+  if (!mindMapWorkingCopy) return { x: 0, y: 0 };
+  const idx = mindMapWorkingCopy.nodes.filter((n) => n.parentId === parent.id).length;
+  const gapX = 28;
+  const gapY = MIND_NODE_H + 20;
+  const row = Math.floor(idx / 5);
+  const col = idx % 5;
+  return {
+    x: clampMindCoord(parent.x + col * gapX - 2 * gapX),
+    y: clampMindCoord(parent.y + MIND_NODE_H + 24 + row * gapY),
+  };
+}
+
 function renderMindMapCanvas() {
   if (!mindMapSvg || !mindMapNodesLayer || !mindMapWorkingCopy) return;
   const ns = "http://www.w3.org/2000/svg";
@@ -1995,15 +2009,17 @@ mindMapAddChildBtn.addEventListener("click", () => {
   if (!mindMapWorkingCopy) return;
   const parent = getMindMapParentForChild();
   if (!parent) return;
+  const pos = mindMapNextChildPosition(parent);
   const nid = uuid();
   mindMapWorkingCopy.nodes.push({
     id: nid,
     label: "Nuevo",
-    x: clampMindCoord(parent.x + 24),
-    y: clampMindCoord(parent.y + MIND_NODE_H + 36),
+    x: pos.x,
+    y: pos.y,
     parentId: parent.id,
   });
-  mindMapSelectedNodeId = nid;
+  // Keep parent selected so several clicks add siblings under the same node (not only under the last child).
+  mindMapSelectedNodeId = parent.id;
   syncMindMapNodeLabelField();
   renderMindMapCanvas();
   persistMindMapWorkingCopy();
