@@ -870,13 +870,47 @@ function renderBoard(ws) {
     return Number.isFinite(v) ? v : 0;
   }
 
+  const PRIORITY_GROUP_STATUSES = new Set(["todo", "in_progress", "blocked"]);
+
   for (const s of STATUSES) {
-    byStatus[s].sort((a, b) => ts(b) - ts(a));
+    if (PRIORITY_GROUP_STATUSES.has(s)) {
+      byStatus[s].sort((a, b) => {
+        const pa = clampPriority(a.priority);
+        const pb = clampPriority(b.priority);
+        if (pa !== pb) return pa - pb; // 1 (más importante) primero
+        return ts(b) - ts(a);
+      });
+    } else {
+      byStatus[s].sort((a, b) => ts(b) - ts(a));
+    }
   }
 
   for (const s of STATUSES) {
     columns[s].innerHTML = "";
     counts[s].textContent = String(byStatus[s].length);
+
+    if (PRIORITY_GROUP_STATUSES.has(s)) {
+      let lastPrio = null;
+      for (const t of byStatus[s]) {
+        const prio = clampPriority(t.priority);
+        if (lastPrio === null || prio !== lastPrio) {
+          const divider = document.createElement("div");
+          divider.className = "priorityDivider";
+          divider.dataset.priority = String(prio);
+
+          const label = document.createElement("span");
+          label.className = "priorityDividerLabel";
+          label.textContent = `Prioridad ${prio}`;
+          divider.appendChild(label);
+
+          columns[s].appendChild(divider);
+          lastPrio = prio;
+        }
+        columns[s].appendChild(taskCard(t));
+      }
+      return;
+    }
+
     for (const t of byStatus[s]) columns[s].appendChild(taskCard(t));
   }
 }
