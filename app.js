@@ -1581,6 +1581,7 @@ function renderMindMapCanvas() {
   }
 
   mindMapSvg.innerHTML = "";
+  mindMapSvg.setAttribute("overflow", "visible");
 
   for (const n of nodes) {
     if (!n.parentId) continue;
@@ -1595,7 +1596,7 @@ function renderMindMapCanvas() {
     line.setAttribute("y1", String(y1));
     line.setAttribute("x2", String(x2));
     line.setAttribute("y2", String(y2));
-    line.setAttribute("stroke", "rgba(255,255,255,0.22)");
+    line.setAttribute("stroke", "rgba(255,255,255,0.42)");
     line.setAttribute("stroke-width", "2");
     mindMapSvg.appendChild(line);
 

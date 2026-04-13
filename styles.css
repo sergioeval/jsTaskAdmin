@@ -385,6 +385,7 @@ body.projectMode #page-project {
 .mindMapInner {
   position: relative;
   flex-shrink: 0;
+  overflow: visible;
   /* width / height set in JS from node bounds + root-centered framing */
 }
 
@@ -393,6 +394,7 @@ body.projectMode #page-project {
   inset: 0;
   transform-origin: 0 0;
   pointer-events: none;
+  overflow: visible;
 }
 
 .mindMapEdgeRow {
@@ -405,6 +407,8 @@ body.projectMode #page-project {
   width: 100%;
   height: 100%;
   pointer-events: none;
+  /* World node coords can exceed innerW/H; default SVG overflow:hidden was clipping all edges. */
+  overflow: visible;
 }
 
 /* Lines/labels must not steal clicks — pan uses empty canvas + RMB. */
