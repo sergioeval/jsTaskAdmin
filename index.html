@@ -335,9 +335,10 @@
                 </div>
                 <div class="panel mindMapTools">
                   <p class="finePrint mindMapHelp">
-                    Clic en un nodo para seleccionarlo; doble clic para editarlo en un popup. Arrastrá con el botón
-                    izquierdo para moverlo. En el fondo del mapa (sin nodos ni líneas), mantené el clic derecho y
-                    arrastrá para desplazar la vista.
+                    Clic en un nodo para seleccionarlo; doble clic para editarlo en un popup. Los nodos hijos pueden
+                    cambiar de padre con «Padre del nodo» o desde ese popup. Arrastrá con el botón izquierdo para
+                    moverlos. En el fondo del mapa (sin nodos ni líneas), mantené el clic derecho y arrastrá para
+                    desplazar la vista.
                   </p>
                   <div class="row wrap">
                     <input
@@ -360,6 +361,13 @@
                       placeholder="Descripción del nodo seleccionado…"
                     ></textarea>
                     <button id="mindMapApplyDescBtn" class="btnSecondary" type="button">Aplicar descripción</button>
+                  </div>
+                  <div class="row wrap mindMapParentRow">
+                    <label class="labelInline" for="mindMapParentSelect">Padre del nodo</label>
+                    <select id="mindMapParentSelect" class="select mindMapParentSelect" aria-label="Padre del nodo seleccionado">
+                      <option value="">— Seleccioná un nodo —</option>
+                    </select>
+                    <button id="mindMapApplyParentBtn" class="btnSecondary" type="button">Aplicar padre</button>
                   </div>
                   <div class="row wrap mindMapEdgeRow">
                     <input
@@ -409,6 +417,13 @@
                     rows="4"
                     placeholder="Opcional…"
                   ></textarea>
+                </div>
+                <div>
+                  <label class="label" for="mindMapQuickParent">Nodo padre</label>
+                  <select id="mindMapQuickParent" class="select" aria-label="Nodo padre"></select>
+                  <p class="finePrint mindMapQuickParentHint">
+                    Solo aplica a nodos hijos. No podés elegir este nodo ni sus descendientes como padre.
+                  </p>
                 </div>
                 <div>
                   <label class="label" for="mindMapQuickEdge">Texto en la conexión (padre → este nodo)</label>

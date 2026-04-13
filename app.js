@@ -91,8 +91,11 @@ const mindMapQuickForm = document.getElementById("mindMapQuickForm");
 const mindMapQuickLabelInput = document.getElementById("mindMapQuickLabel");
 const mindMapQuickDescInput = document.getElementById("mindMapQuickDesc");
 const mindMapQuickEdgeInput = document.getElementById("mindMapQuickEdge");
+const mindMapQuickParentSelect = document.getElementById("mindMapQuickParent");
 const closeMindMapQuickBtn = document.getElementById("closeMindMapQuickBtn");
 const mindMapQuickCancelBtn = document.getElementById("mindMapQuickCancelBtn");
+const mindMapParentSelect = document.getElementById("mindMapParentSelect");
+const mindMapApplyParentBtn = document.getElementById("mindMapApplyParentBtn");
 
 const exportBtn = document.getElementById("exportBtn");
 const importFile = document.getElementById("importFile");
@@ -1352,6 +1355,51 @@ function mindMapDescendantIds(rootId, nodes) {
   return out;
 }
 
+/** Parent candidates: any node except self and own descendants (avoids cycles). */
+function mindMapValidParentIds(nodeId, nodes) {
+  const forbidden = new Set([nodeId, ...mindMapDescendantIds(nodeId, nodes)]);
+  return nodes.map((n) => n.id).filter((id) => !forbidden.has(id));
+}
+
+function fillMindMapParentSelect(selectEl, node) {
+  if (!selectEl || !mindMapWorkingCopy || !node) return;
+  const { nodes } = mindMapWorkingCopy;
+  selectEl.innerHTML = "";
+
+  if (!node.parentId) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "Raíz del mapa (sin padre)";
+    selectEl.appendChild(opt);
+    selectEl.value = "";
+    selectEl.disabled = true;
+    return;
+  }
+
+  selectEl.disabled = false;
+  const validIds = mindMapValidParentIds(node.id, nodes);
+  const sorted = [...validIds].sort((a, b) => {
+    const la = String(nodes.find((x) => x.id === a)?.label || a);
+    const lb = String(nodes.find((x) => x.id === b)?.label || b);
+    return la.localeCompare(lb, "es");
+  });
+
+  for (const id of sorted) {
+    const pn = nodes.find((x) => x.id === id);
+    const o = document.createElement("option");
+    o.value = id;
+    o.textContent = pn?.label || id;
+    if (id === node.parentId) o.selected = true;
+    selectEl.appendChild(o);
+  }
+
+  if (node.parentId && sorted.includes(node.parentId)) {
+    selectEl.value = node.parentId;
+  } else if (sorted.length > 0) {
+    selectEl.value = sorted[0];
+  }
+}
+
 function persistMindMapWorkingCopy() {
   if (!currentUserNumber || !mindMapWorkingCopy) return;
   const saved = sanitizeMindMap({
@@ -1389,12 +1437,30 @@ function syncMindMapNodeDescField() {
   mindMapNodeDescInput.value = n ? String(n.description || "") : "";
 }
 
+function syncMindMapParentField() {
+  if (!mindMapParentSelect || !mindMapWorkingCopy) return;
+  const n = mindMapSelectedNodeId
+    ? mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId)
+    : null;
+  if (!n) {
+    mindMapParentSelect.innerHTML = "";
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "— Seleccioná un nodo —";
+    mindMapParentSelect.appendChild(opt);
+    mindMapParentSelect.disabled = true;
+    return;
+  }
+  fillMindMapParentSelect(mindMapParentSelect, n);
+}
+
 function syncMindMapNodeLabelField() {
   if (!mindMapNodeLabelInput) return;
   const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
   mindMapNodeLabelInput.value = n ? n.label : "";
   syncMindMapNodeDescField();
   syncMindMapEdgeLabelField();
+  syncMindMapParentField();
 }
 
 function setMindMapNodeQuickModal(open) {
@@ -1420,6 +1486,10 @@ function closeMindMapNodeQuickEdit() {
     mindMapQuickEdgeInput.value = "";
     mindMapQuickEdgeInput.disabled = true;
   }
+  if (mindMapQuickParentSelect) {
+    mindMapQuickParentSelect.innerHTML = "";
+    mindMapQuickParentSelect.disabled = true;
+  }
   setMindMapNodeQuickModal(false);
 }
 
@@ -1433,6 +1503,7 @@ function openMindMapNodeQuickEdit(nodeId) {
   if (mindMapQuickLabelInput) mindMapQuickLabelInput.value = node.label;
   if (mindMapQuickDescInput) mindMapQuickDescInput.value = String(node.description || "");
   syncMindMapQuickEdgeFieldForNode(node);
+  fillMindMapParentSelect(mindMapQuickParentSelect, node);
   setMindMapNodeQuickModal(true);
   queueMicrotask(() => mindMapQuickLabelInput?.focus());
 }
@@ -1606,6 +1677,14 @@ function unloadMindMapEditor() {
   if (mindMapNameInput) mindMapNameInput.value = "";
   if (mindMapNodeLabelInput) mindMapNodeLabelInput.value = "";
   if (mindMapNodeDescInput) mindMapNodeDescInput.value = "";
+  if (mindMapParentSelect) {
+    mindMapParentSelect.innerHTML = "";
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "— Seleccioná un nodo —";
+    mindMapParentSelect.appendChild(opt);
+    mindMapParentSelect.disabled = true;
+  }
   syncMindMapEdgeLabelField();
   setMindMapEditorVisible(false);
 }
@@ -2244,6 +2323,10 @@ if (mindMapQuickForm) {
     n.label = String(mindMapQuickLabelInput?.value || "").trim().slice(0, 200) || "Nodo";
     n.description = String(mindMapQuickDescInput?.value || "").trim().slice(0, 5000);
     if (n.parentId) {
+      const valid = mindMapValidParentIds(n.id, mindMapWorkingCopy.nodes);
+      const newP = String(mindMapQuickParentSelect?.value || "");
+      if (newP && valid.includes(newP)) n.parentId = newP;
+      else if (newP && !valid.includes(newP)) toast("Padre inválido.");
       n.edgeLabel = String(mindMapQuickEdgeInput?.value || "").trim().slice(0, 120);
     }
     renderMindMapCanvas();
@@ -2256,6 +2339,33 @@ if (mindMapQuickForm) {
 
 closeMindMapQuickBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
 mindMapQuickCancelBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
+
+mindMapApplyParentBtn?.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
+    toast("Seleccioná un nodo.");
+    return;
+  }
+  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
+  if (!n || !n.parentId) {
+    toast("Solo los nodos hijos pueden cambiar de padre.");
+    return;
+  }
+  const newP = String(mindMapParentSelect?.value || "");
+  const valid = mindMapValidParentIds(n.id, mindMapWorkingCopy.nodes);
+  if (!newP || !valid.includes(newP)) {
+    toast("Elegí un padre válido.");
+    return;
+  }
+  if (newP === n.parentId) {
+    toast("Ya es el padre actual.");
+    return;
+  }
+  n.parentId = newP;
+  renderMindMapCanvas();
+  persistMindMapWorkingCopy();
+  syncMindMapNodeLabelField();
+  toast("Padre actualizado.");
+});
 
 if (mindMapViewport) {
   mindMapViewport.addEventListener("mousedown", (e) => {
