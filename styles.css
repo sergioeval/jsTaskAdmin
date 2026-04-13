@@ -778,6 +778,7 @@ body.projectMode #page-project {
   position: fixed;
   left: 50%;
   bottom: 18px;
+  z-index: 110;
   transform: translateX(-50%);
   padding: 0.75rem 1rem;
   border-radius: 999px;
@@ -802,6 +803,11 @@ body.projectMode #page-project {
   background: rgba(0, 0, 0, 0.55);
   padding: 1rem;
   z-index: 50;
+}
+
+/* Mind map node editor: direct child of body so it covers the full viewport like a real popup. */
+.modalMindMapNodeOverlay {
+  z-index: 100;
 }
 
 .modal.hidden {

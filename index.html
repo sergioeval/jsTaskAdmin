@@ -335,7 +335,7 @@
                 </div>
                 <div class="panel mindMapTools">
                   <p class="finePrint mindMapHelp">
-                    Clic en un nodo para seleccionarlo; doble clic para editarlo en un popup. Los nodos hijos pueden
+                    Clic en un nodo para seleccionarlo; doble clic abre una ventana modal para editarlo. Los nodos hijos pueden
                     cambiar de padre con «Padre del nodo» o desde ese popup. Arrastrá con el botón izquierdo para
                     moverlos. El lienzo se ajusta solo al contenido y enmarca el nodo raíz arriba y al centro.
                   </p>
@@ -391,61 +391,6 @@
             </div>
           </section>
 
-          <div id="modalMindMapNode" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar nodo">
-            <div class="modalPanel modalMindMapNodePanel">
-              <div class="modalHeader">
-                <h3 class="panelTitle">Editar nodo</h3>
-                <button id="closeMindMapQuickBtn" class="btnSecondary" type="button">Cerrar</button>
-              </div>
-              <form id="mindMapQuickForm" class="page mindMapQuickForm">
-                <div>
-                  <label class="label" for="mindMapQuickLabel">Texto</label>
-                  <input
-                    id="mindMapQuickLabel"
-                    class="input"
-                    type="text"
-                    maxlength="200"
-                    placeholder="Título del nodo…"
-                    required
-                  />
-                </div>
-                <div>
-                  <label class="label" for="mindMapQuickDesc">Descripción</label>
-                  <textarea
-                    id="mindMapQuickDesc"
-                    class="input textarea mindMapQuickDesc"
-                    maxlength="5000"
-                    rows="4"
-                    placeholder="Opcional…"
-                  ></textarea>
-                </div>
-                <div>
-                  <label class="label" for="mindMapQuickParent">Nodo padre</label>
-                  <select id="mindMapQuickParent" class="select" aria-label="Nodo padre"></select>
-                  <p class="finePrint mindMapQuickParentHint">
-                    Solo aplica a nodos hijos. No podés elegir este nodo ni sus descendientes como padre.
-                  </p>
-                </div>
-                <div>
-                  <label class="label" for="mindMapQuickEdge">Texto en la conexión (padre → este nodo)</label>
-                  <input
-                    id="mindMapQuickEdge"
-                    class="input"
-                    type="text"
-                    maxlength="120"
-                    placeholder="Solo aplica a nodos hijos…"
-                  />
-                  <p class="finePrint mindMapQuickEdgeHint">En la raíz del mapa este campo no aplica.</p>
-                </div>
-                <div class="row wrap">
-                  <button id="mindMapQuickCancelBtn" class="btnSecondary" type="button">Cancelar</button>
-                  <div class="kanbanSpacer"></div>
-                  <button id="mindMapQuickSaveBtn" class="btn" type="submit">Guardar</button>
-                </div>
-              </form>
-            </div>
-          </div>
-
           <div id="modalNote" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar nota">
             <div class="modalPanel">
               <div class="modalHeader">
@@ -488,6 +433,68 @@
 
       </section>
     </main>
+
+    <div
+      id="modalMindMapNode"
+      class="modal modalMindMapNodeOverlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-label="Editar nodo del mapa mental"
+    >
+      <div class="modalPanel modalMindMapNodePanel">
+        <div class="modalHeader">
+          <h3 class="panelTitle">Editar nodo</h3>
+          <button id="closeMindMapQuickBtn" class="btnSecondary" type="button">Cerrar</button>
+        </div>
+        <form id="mindMapQuickForm" class="page mindMapQuickForm">
+          <div>
+            <label class="label" for="mindMapQuickLabel">Texto</label>
+            <input
+              id="mindMapQuickLabel"
+              class="input"
+              type="text"
+              maxlength="200"
+              placeholder="Título del nodo…"
+              required
+            />
+          </div>
+          <div>
+            <label class="label" for="mindMapQuickDesc">Descripción</label>
+            <textarea
+              id="mindMapQuickDesc"
+              class="input textarea mindMapQuickDesc"
+              maxlength="5000"
+              rows="4"
+              placeholder="Opcional…"
+            ></textarea>
+          </div>
+          <div>
+            <label class="label" for="mindMapQuickParent">Nodo padre</label>
+            <select id="mindMapQuickParent" class="select" aria-label="Nodo padre"></select>
+            <p class="finePrint mindMapQuickParentHint">
+              Solo aplica a nodos hijos. No podés elegir este nodo ni sus descendientes como padre.
+            </p>
+          </div>
+          <div>
+            <label class="label" for="mindMapQuickEdge">Texto en la conexión (padre → este nodo)</label>
+            <input
+              id="mindMapQuickEdge"
+              class="input"
+              type="text"
+              maxlength="120"
+              placeholder="Solo aplica a nodos hijos…"
+            />
+            <p class="finePrint mindMapQuickEdgeHint">En la raíz del mapa este campo no aplica.</p>
+          </div>
+          <div class="row wrap">
+            <button id="mindMapQuickCancelBtn" class="btnSecondary" type="button">Cancelar</button>
+            <div class="kanbanSpacer"></div>
+            <button id="mindMapQuickSaveBtn" class="btn" type="submit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

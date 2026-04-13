@@ -321,6 +321,9 @@ function saveProjectNotes(userNumber, projectId, notes) {
 
 const MIND_NODE_W = 132;
 const MIND_NODE_H = 52;
+/** Pixels of pointer movement before a drag starts (lets double-click open the modal without moving the node). */
+const MIND_DRAG_THRESHOLD_PX = 6;
+const MIND_DRAG_THRESHOLD_SQ = MIND_DRAG_THRESHOLD_PX * MIND_DRAG_THRESHOLD_PX;
 const WORKSPACE_SCHEMA_VERSION = 4;
 
 function clampMindCoord(v) {
@@ -599,6 +602,7 @@ let editingMindMapId = null;
 let mindMapWorkingCopy = null;
 let mindMapSelectedNodeId = null;
 let mindMapDrag = null;
+let mindMapDragCandidate = null;
 let mindMapDragListenersAttached = false;
 /** After creating a map, select it once `renderMindMaps` rebuilds the dropdown. */
 let pendingMindMapSelectId = null;
@@ -618,6 +622,7 @@ function detachMindMapDragListeners() {
   document.removeEventListener("mouseup", onMindMapMouseUp);
   mindMapDragListenersAttached = false;
   mindMapDrag = null;
+  mindMapDragCandidate = null;
 }
 
 function setMindMapEditorVisible(show) {
@@ -1463,6 +1468,7 @@ function syncMindMapNodeLabelField() {
 function setMindMapNodeQuickModal(open) {
   if (!modalMindMapNode) return;
   modalMindMapNode.classList.toggle("hidden", !open);
+  modalMindMapNode.setAttribute("aria-hidden", open ? "false" : "true");
 }
 
 function syncMindMapQuickEdgeFieldForNode(node) {
@@ -1631,7 +1637,8 @@ function renderMindMapCanvas() {
       e.stopPropagation();
       mindMapSelectedNodeId = n.id;
       syncMindMapNodeLabelField();
-      mindMapDrag = {
+      mindMapDrag = null;
+      mindMapDragCandidate = {
         id: n.id,
         startMouseX: e.clientX,
         startMouseY: e.clientY,
@@ -1647,6 +1654,7 @@ function renderMindMapCanvas() {
       e.preventDefault();
       e.stopPropagation();
       mindMapDrag = null;
+      mindMapDragCandidate = null;
       openMindMapNodeQuickEdit(n.id);
       renderMindMapCanvas();
     });
@@ -1655,7 +1663,16 @@ function renderMindMapCanvas() {
 }
 
 function onMindMapMouseMove(e) {
-  if (!mindMapDrag || !mindMapWorkingCopy) return;
+  if (!mindMapWorkingCopy) return;
+  if (mindMapDragCandidate && !mindMapDrag) {
+    const dx = e.clientX - mindMapDragCandidate.startMouseX;
+    const dy = e.clientY - mindMapDragCandidate.startMouseY;
+    if (dx * dx + dy * dy >= MIND_DRAG_THRESHOLD_SQ) {
+      mindMapDrag = { ...mindMapDragCandidate };
+      mindMapDragCandidate = null;
+    }
+  }
+  if (!mindMapDrag) return;
   const node = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapDrag.id);
   if (!node) return;
   const dx = e.clientX - mindMapDrag.startMouseX;
@@ -1670,6 +1687,7 @@ function onMindMapMouseUp() {
     mindMapDrag = null;
     persistMindMapWorkingCopy();
   }
+  mindMapDragCandidate = null;
 }
 
 function loadMindMapForEditing(mapId) {
