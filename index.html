@@ -335,8 +335,9 @@
                 </div>
                 <div class="panel mindMapTools">
                   <p class="finePrint mindMapHelp">
-                    Clic en un nodo para seleccionarlo; arrastrá con el botón izquierdo para moverlo. En el fondo del
-                    mapa (sin nodos ni líneas), mantené el clic derecho y arrastrá para desplazar la vista.
+                    Clic en un nodo para seleccionarlo; doble clic para editarlo en un popup. Arrastrá con el botón
+                    izquierdo para moverlo. En el fondo del mapa (sin nodos ni líneas), mantené el clic derecho y
+                    arrastrá para desplazar la vista.
                   </p>
                   <div class="row wrap">
                     <input
@@ -380,6 +381,54 @@
               </div>
             </div>
           </section>
+
+          <div id="modalMindMapNode" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar nodo">
+            <div class="modalPanel modalMindMapNodePanel">
+              <div class="modalHeader">
+                <h3 class="panelTitle">Editar nodo</h3>
+                <button id="closeMindMapQuickBtn" class="btnSecondary" type="button">Cerrar</button>
+              </div>
+              <form id="mindMapQuickForm" class="page mindMapQuickForm">
+                <div>
+                  <label class="label" for="mindMapQuickLabel">Texto</label>
+                  <input
+                    id="mindMapQuickLabel"
+                    class="input"
+                    type="text"
+                    maxlength="200"
+                    placeholder="Título del nodo…"
+                    required
+                  />
+                </div>
+                <div>
+                  <label class="label" for="mindMapQuickDesc">Descripción</label>
+                  <textarea
+                    id="mindMapQuickDesc"
+                    class="input textarea mindMapQuickDesc"
+                    maxlength="5000"
+                    rows="4"
+                    placeholder="Opcional…"
+                  ></textarea>
+                </div>
+                <div>
+                  <label class="label" for="mindMapQuickEdge">Texto en la conexión (padre → este nodo)</label>
+                  <input
+                    id="mindMapQuickEdge"
+                    class="input"
+                    type="text"
+                    maxlength="120"
+                    placeholder="Solo aplica a nodos hijos…"
+                  />
+                  <p class="finePrint mindMapQuickEdgeHint">En la raíz del mapa este campo no aplica.</p>
+                </div>
+                <div class="row wrap">
+                  <button id="mindMapQuickCancelBtn" class="btnSecondary" type="button">Cancelar</button>
+                  <div class="kanbanSpacer"></div>
+                  <button id="mindMapQuickSaveBtn" class="btn" type="submit">Guardar</button>
+                </div>
+              </form>
+            </div>
+          </div>
 
           <div id="modalNote" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar nota">
             <div class="modalPanel">

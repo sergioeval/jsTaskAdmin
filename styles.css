@@ -329,6 +329,30 @@ body.projectMode #page-project {
   margin: 0 0 0.75rem;
 }
 
+/* Compact popup for editing a mind map node (double-click). */
+#modalMindMapNode .modalMindMapNodePanel {
+  width: min(380px, calc(100vw - 2rem));
+  max-height: min(88vh, 560px);
+  overflow: auto;
+}
+
+#modalMindMapNode .mindMapQuickForm {
+  gap: 0.75rem;
+}
+
+#modalMindMapNode .input,
+#modalMindMapNode .textarea {
+  width: 100%;
+}
+
+#modalMindMapNode .mindMapQuickDesc {
+  min-height: 96px;
+}
+
+#modalMindMapNode .mindMapQuickEdgeHint {
+  margin: 0.35rem 0 0;
+}
+
 .mindMapViewport {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);

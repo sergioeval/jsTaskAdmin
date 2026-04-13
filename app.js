@@ -86,6 +86,14 @@ const mindMapInner = document.getElementById("mindMapInner");
 const mindMapSvg = document.getElementById("mindMapSvg");
 const mindMapNodesLayer = document.getElementById("mindMapNodesLayer");
 
+const modalMindMapNode = document.getElementById("modalMindMapNode");
+const mindMapQuickForm = document.getElementById("mindMapQuickForm");
+const mindMapQuickLabelInput = document.getElementById("mindMapQuickLabel");
+const mindMapQuickDescInput = document.getElementById("mindMapQuickDesc");
+const mindMapQuickEdgeInput = document.getElementById("mindMapQuickEdge");
+const closeMindMapQuickBtn = document.getElementById("closeMindMapQuickBtn");
+const mindMapQuickCancelBtn = document.getElementById("mindMapQuickCancelBtn");
+
 const exportBtn = document.getElementById("exportBtn");
 const importFile = document.getElementById("importFile");
 const importBtn = document.getElementById("importBtn");
@@ -592,6 +600,8 @@ let mindMapPan = null;
 let mindMapDragListenersAttached = false;
 /** After creating a map, select it once `renderMindMaps` rebuilds the dropdown. */
 let pendingMindMapSelectId = null;
+/** Node id being edited in the double-click popup (if open). */
+let mindMapQuickEditNodeId = null;
 
 function attachMindMapDragListeners() {
   if (mindMapDragListenersAttached) return;
@@ -1387,6 +1397,46 @@ function syncMindMapNodeLabelField() {
   syncMindMapEdgeLabelField();
 }
 
+function setMindMapNodeQuickModal(open) {
+  if (!modalMindMapNode) return;
+  modalMindMapNode.classList.toggle("hidden", !open);
+}
+
+function syncMindMapQuickEdgeFieldForNode(node) {
+  if (!mindMapQuickEdgeInput) return;
+  if (!node?.parentId) {
+    mindMapQuickEdgeInput.value = "";
+    mindMapQuickEdgeInput.disabled = true;
+    return;
+  }
+  mindMapQuickEdgeInput.disabled = false;
+  mindMapQuickEdgeInput.value = String(node.edgeLabel || "");
+}
+
+function closeMindMapNodeQuickEdit() {
+  mindMapQuickEditNodeId = null;
+  if (mindMapQuickForm) mindMapQuickForm.reset();
+  if (mindMapQuickEdgeInput) {
+    mindMapQuickEdgeInput.value = "";
+    mindMapQuickEdgeInput.disabled = true;
+  }
+  setMindMapNodeQuickModal(false);
+}
+
+function openMindMapNodeQuickEdit(nodeId) {
+  if (!mindMapWorkingCopy || !modalMindMapNode) return;
+  const node = mindMapWorkingCopy.nodes.find((x) => x.id === nodeId);
+  if (!node) return;
+  mindMapQuickEditNodeId = nodeId;
+  mindMapSelectedNodeId = nodeId;
+  syncMindMapNodeLabelField();
+  if (mindMapQuickLabelInput) mindMapQuickLabelInput.value = node.label;
+  if (mindMapQuickDescInput) mindMapQuickDescInput.value = String(node.description || "");
+  syncMindMapQuickEdgeFieldForNode(node);
+  setMindMapNodeQuickModal(true);
+  queueMicrotask(() => mindMapQuickLabelInput?.focus());
+}
+
 function getMindMapParentForChild() {
   if (!mindMapWorkingCopy) return null;
   const { nodes } = mindMapWorkingCopy;
@@ -1485,10 +1535,10 @@ function renderMindMapCanvas() {
       e.stopPropagation();
     });
     div.addEventListener("dblclick", (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      mindMapSelectedNodeId = n.id;
-      syncMindMapNodeLabelField();
-      mindMapNodeLabelInput?.focus();
+      mindMapDrag = null;
+      openMindMapNodeQuickEdit(n.id);
       renderMindMapCanvas();
     });
     mindMapNodesLayer.appendChild(div);
@@ -1546,6 +1596,7 @@ function loadMindMapForEditing(mapId) {
 }
 
 function unloadMindMapEditor() {
+  closeMindMapNodeQuickEdit();
   detachMindMapDragListeners();
   editingMindMapId = null;
   mindMapWorkingCopy = null;
@@ -2031,6 +2082,10 @@ modalDone.addEventListener("click", (e) => {
 
 window.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if (modalMindMapNode && !modalMindMapNode.classList.contains("hidden")) {
+    closeMindMapNodeQuickEdit();
+    return;
+  }
   setModal("backlog", false);
   setModal("done", false);
   closeTaskEditor();
@@ -2170,6 +2225,37 @@ mindMapInner.addEventListener("click", () => {
   syncMindMapNodeLabelField();
   renderMindMapCanvas();
 });
+
+if (modalMindMapNode) {
+  modalMindMapNode.addEventListener("click", (e) => {
+    if (e.target === modalMindMapNode) closeMindMapNodeQuickEdit();
+  });
+}
+
+if (mindMapQuickForm) {
+  mindMapQuickForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) return;
+    const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapQuickEditNodeId);
+    if (!n) {
+      closeMindMapNodeQuickEdit();
+      return;
+    }
+    n.label = String(mindMapQuickLabelInput?.value || "").trim().slice(0, 200) || "Nodo";
+    n.description = String(mindMapQuickDescInput?.value || "").trim().slice(0, 5000);
+    if (n.parentId) {
+      n.edgeLabel = String(mindMapQuickEdgeInput?.value || "").trim().slice(0, 120);
+    }
+    renderMindMapCanvas();
+    persistMindMapWorkingCopy();
+    syncMindMapNodeLabelField();
+    closeMindMapNodeQuickEdit();
+    toast("Nodo guardado.");
+  });
+}
+
+closeMindMapQuickBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
+mindMapQuickCancelBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
 
 if (mindMapViewport) {
   mindMapViewport.addEventListener("mousedown", (e) => {
