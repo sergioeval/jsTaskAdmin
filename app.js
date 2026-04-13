@@ -1529,7 +1529,7 @@ function mindMapNextChildPosition(parent) {
   };
 }
 
-/** Size the canvas to fit all nodes; center view on root (initial) node. World coords unchanged. */
+/** Size the canvas to fit all nodes; root centered horizontally, anchored toward the top. World coords unchanged. */
 function computeMindMapViewLayout(nodes) {
   if (!nodes.length) {
     return { innerW: 400, innerH: 320, tx: 0, ty: 0 };
@@ -1548,12 +1548,16 @@ function computeMindMapViewLayout(nodes) {
   const rcx = root.x + MIND_NODE_W / 2;
   const rcy = root.y + MIND_NODE_H / 2;
   const halfW = Math.max(rcx - minX, maxR - rcx, MIND_NODE_W / 2);
-  const halfH = Math.max(rcy - minY, maxB - rcy, MIND_NODE_H / 2);
   const margin = 48;
+  const topPad = margin;
+  const bottomPad = margin;
   const innerW = Math.max(280, Math.ceil(2 * halfW + 2 * margin));
-  const innerH = Math.max(220, Math.ceil(2 * halfH + 2 * margin));
   const tx = innerW / 2 - rcx;
-  const ty = innerH / 2 - rcy;
+  let ty = topPad + MIND_NODE_H / 2 - rcy;
+  const topEdge = minY + ty;
+  if (topEdge < 0) ty -= topEdge;
+  const bottomEdge = maxB + ty;
+  const innerH = Math.max(220, Math.ceil(bottomEdge + bottomPad));
   return { innerW, innerH, tx, ty };
 }
 
