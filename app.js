@@ -75,10 +75,13 @@ const mindMapSaveNameBtn = document.getElementById("mindMapSaveNameBtn");
 const mindMapDeleteMapBtn = document.getElementById("mindMapDeleteMapBtn");
 const mindMapNodeLabelInput = document.getElementById("mindMapNodeLabelInput");
 const mindMapApplyLabelBtn = document.getElementById("mindMapApplyLabelBtn");
+const mindMapNodeDescInput = document.getElementById("mindMapNodeDescInput");
+const mindMapApplyDescBtn = document.getElementById("mindMapApplyDescBtn");
 const mindMapEdgeLabelInput = document.getElementById("mindMapEdgeLabelInput");
 const mindMapApplyEdgeBtn = document.getElementById("mindMapApplyEdgeBtn");
 const mindMapAddChildBtn = document.getElementById("mindMapAddChildBtn");
 const mindMapDeleteNodeBtn = document.getElementById("mindMapDeleteNodeBtn");
+const mindMapViewport = document.getElementById("mindMapViewport");
 const mindMapInner = document.getElementById("mindMapInner");
 const mindMapSvg = document.getElementById("mindMapSvg");
 const mindMapNodesLayer = document.getElementById("mindMapNodesLayer");
@@ -326,6 +329,7 @@ function sanitizeMindMap(mm) {
       const edgeLabel = parentId
         ? String(n.edgeLabel ?? n.linkLabel ?? "").trim().slice(0, 120)
         : "";
+      const description = String(n.description ?? n.desc ?? "").trim().slice(0, 5000);
       return {
         id: String(n.id || uuid()),
         label: String(n.label || "").trim().slice(0, 200) || "Nodo",
@@ -333,6 +337,7 @@ function sanitizeMindMap(mm) {
         y: clampMindCoord(n.y),
         parentId,
         edgeLabel,
+        description,
       };
     });
   const idSet = new Set(nodes.map((n) => n.id));
@@ -583,6 +588,7 @@ let editingMindMapId = null;
 let mindMapWorkingCopy = null;
 let mindMapSelectedNodeId = null;
 let mindMapDrag = null;
+let mindMapPan = null;
 let mindMapDragListenersAttached = false;
 /** After creating a map, select it once `renderMindMaps` rebuilds the dropdown. */
 let pendingMindMapSelectId = null;
@@ -600,6 +606,8 @@ function detachMindMapDragListeners() {
   document.removeEventListener("mouseup", onMindMapMouseUp);
   mindMapDragListenersAttached = false;
   mindMapDrag = null;
+  mindMapPan = null;
+  mindMapViewport?.classList.remove("isPanning");
 }
 
 function setMindMapEditorVisible(show) {
@@ -1365,10 +1373,17 @@ function syncMindMapEdgeLabelField() {
   mindMapEdgeLabelInput.value = String(n.edgeLabel || "");
 }
 
+function syncMindMapNodeDescField() {
+  if (!mindMapNodeDescInput) return;
+  const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
+  mindMapNodeDescInput.value = n ? String(n.description || "") : "";
+}
+
 function syncMindMapNodeLabelField() {
   if (!mindMapNodeLabelInput) return;
   const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
   mindMapNodeLabelInput.value = n ? n.label : "";
+  syncMindMapNodeDescField();
   syncMindMapEdgeLabelField();
 }
 
@@ -1449,7 +1464,10 @@ function renderMindMapCanvas() {
     div.style.top = `${n.y}px`;
     div.textContent = n.label;
     div.dataset.nodeId = n.id;
+    const desc = String(n.description || "").trim();
+    if (desc) div.title = desc.length > 240 ? `${desc.slice(0, 238)}…` : desc;
     div.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
       mindMapSelectedNodeId = n.id;
@@ -1478,6 +1496,11 @@ function renderMindMapCanvas() {
 }
 
 function onMindMapMouseMove(e) {
+  if (mindMapPan && mindMapViewport) {
+    mindMapViewport.scrollLeft = mindMapPan.sl - (e.clientX - mindMapPan.x);
+    mindMapViewport.scrollTop = mindMapPan.st - (e.clientY - mindMapPan.y);
+    return;
+  }
   if (!mindMapDrag || !mindMapWorkingCopy) return;
   const node = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapDrag.id);
   if (!node) return;
@@ -1489,6 +1512,11 @@ function onMindMapMouseMove(e) {
 }
 
 function onMindMapMouseUp() {
+  if (mindMapPan) {
+    mindMapPan = null;
+    mindMapViewport?.classList.remove("isPanning");
+    return;
+  }
   if (mindMapDrag) {
     mindMapDrag = null;
     persistMindMapWorkingCopy();
@@ -1526,6 +1554,7 @@ function unloadMindMapEditor() {
   if (mindMapNodesLayer) mindMapNodesLayer.innerHTML = "";
   if (mindMapNameInput) mindMapNameInput.value = "";
   if (mindMapNodeLabelInput) mindMapNodeLabelInput.value = "";
+  if (mindMapNodeDescInput) mindMapNodeDescInput.value = "";
   syncMindMapEdgeLabelField();
   setMindMapEditorVisible(false);
 }
@@ -2063,6 +2092,19 @@ mindMapApplyLabelBtn.addEventListener("click", () => {
   persistMindMapWorkingCopy();
 });
 
+mindMapApplyDescBtn?.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
+    toast("Seleccioná un nodo.");
+    return;
+  }
+  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
+  if (!n) return;
+  n.description = String(mindMapNodeDescInput?.value || "").trim().slice(0, 5000);
+  renderMindMapCanvas();
+  persistMindMapWorkingCopy();
+  toast("Descripción guardada.");
+});
+
 mindMapApplyEdgeBtn.addEventListener("click", () => {
   if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
     toast("Seleccioná un nodo.");
@@ -2092,6 +2134,7 @@ mindMapAddChildBtn.addEventListener("click", () => {
     y: pos.y,
     parentId: parent.id,
     edgeLabel: "",
+    description: "",
   });
   // Keep parent selected so several clicks add siblings under the same node (not only under the last child).
   mindMapSelectedNodeId = parent.id;
@@ -2127,6 +2170,24 @@ mindMapInner.addEventListener("click", () => {
   syncMindMapNodeLabelField();
   renderMindMapCanvas();
 });
+
+if (mindMapViewport) {
+  mindMapViewport.addEventListener("mousedown", (e) => {
+    if (e.button !== 2) return;
+    if (e.target.closest(".mindNode")) return;
+    e.preventDefault();
+    mindMapPan = {
+      x: e.clientX,
+      y: e.clientY,
+      sl: mindMapViewport.scrollLeft,
+      st: mindMapViewport.scrollTop,
+    };
+    mindMapViewport.classList.add("isPanning");
+  });
+  mindMapViewport.addEventListener("contextmenu", (e) => {
+    if (!e.target.closest(".mindNode")) e.preventDefault();
+  });
+}
 
 exportBtn.addEventListener("click", () => {
   if (!currentWorkspace || !currentUserNumber) return;

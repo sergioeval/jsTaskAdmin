@@ -335,7 +335,8 @@
                 </div>
                 <div class="panel mindMapTools">
                   <p class="finePrint mindMapHelp">
-                    Clic en un nodo para seleccionarlo. Arrastrá para mover. Agregá hijos o editá el texto abajo.
+                    Clic en un nodo para seleccionarlo; arrastrá con el botón izquierdo para moverlo. En el fondo del
+                    mapa (sin nodos ni líneas), mantené el clic derecho y arrastrá para desplazar la vista.
                   </p>
                   <div class="row wrap">
                     <input
@@ -348,6 +349,16 @@
                     <button id="mindMapApplyLabelBtn" class="btnSecondary" type="button">Aplicar texto</button>
                     <button id="mindMapAddChildBtn" class="btn" type="button">Agregar hijo</button>
                     <button id="mindMapDeleteNodeBtn" class="btnSecondary" type="button">Eliminar nodo</button>
+                  </div>
+                  <div class="row wrap mindMapDescRow">
+                    <textarea
+                      id="mindMapNodeDescInput"
+                      class="input textarea mindMapDescInput"
+                      maxlength="5000"
+                      rows="3"
+                      placeholder="Descripción del nodo seleccionado…"
+                    ></textarea>
+                    <button id="mindMapApplyDescBtn" class="btnSecondary" type="button">Aplicar descripción</button>
                   </div>
                   <div class="row wrap mindMapEdgeRow">
                     <input

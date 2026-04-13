@@ -356,6 +356,16 @@ body.projectMode #page-project {
   pointer-events: none;
 }
 
+/* Lines/labels must not steal clicks — pan uses empty canvas + RMB. */
+.mindMapSvg * {
+  pointer-events: none;
+}
+
+.mindMapViewport.isPanning {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .mindMapNodesLayer {
   position: absolute;
   inset: 0;
