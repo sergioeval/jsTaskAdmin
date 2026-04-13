@@ -81,8 +81,8 @@ const mindMapEdgeLabelInput = document.getElementById("mindMapEdgeLabelInput");
 const mindMapApplyEdgeBtn = document.getElementById("mindMapApplyEdgeBtn");
 const mindMapAddChildBtn = document.getElementById("mindMapAddChildBtn");
 const mindMapDeleteNodeBtn = document.getElementById("mindMapDeleteNodeBtn");
-const mindMapViewport = document.getElementById("mindMapViewport");
 const mindMapInner = document.getElementById("mindMapInner");
+const mindMapWorld = document.getElementById("mindMapWorld");
 const mindMapSvg = document.getElementById("mindMapSvg");
 const mindMapNodesLayer = document.getElementById("mindMapNodesLayer");
 
@@ -599,7 +599,6 @@ let editingMindMapId = null;
 let mindMapWorkingCopy = null;
 let mindMapSelectedNodeId = null;
 let mindMapDrag = null;
-let mindMapPan = null;
 let mindMapDragListenersAttached = false;
 /** After creating a map, select it once `renderMindMaps` rebuilds the dropdown. */
 let pendingMindMapSelectId = null;
@@ -619,8 +618,6 @@ function detachMindMapDragListeners() {
   document.removeEventListener("mouseup", onMindMapMouseUp);
   mindMapDragListenersAttached = false;
   mindMapDrag = null;
-  mindMapPan = null;
-  mindMapViewport?.classList.remove("isPanning");
 }
 
 function setMindMapEditorVisible(show) {
@@ -1532,11 +1529,48 @@ function mindMapNextChildPosition(parent) {
   };
 }
 
+/** Size the canvas to fit all nodes; center view on root (initial) node. World coords unchanged. */
+function computeMindMapViewLayout(nodes) {
+  if (!nodes.length) {
+    return { innerW: 400, innerH: 320, tx: 0, ty: 0 };
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxR = -Infinity;
+  let maxB = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxR = Math.max(maxR, n.x + MIND_NODE_W);
+    maxB = Math.max(maxB, n.y + MIND_NODE_H);
+  }
+  const root = nodes.find((n) => n.parentId === null) || nodes[0];
+  const rcx = root.x + MIND_NODE_W / 2;
+  const rcy = root.y + MIND_NODE_H / 2;
+  const halfW = Math.max(rcx - minX, maxR - rcx, MIND_NODE_W / 2);
+  const halfH = Math.max(rcy - minY, maxB - rcy, MIND_NODE_H / 2);
+  const margin = 48;
+  const innerW = Math.max(280, Math.ceil(2 * halfW + 2 * margin));
+  const innerH = Math.max(220, Math.ceil(2 * halfH + 2 * margin));
+  const tx = innerW / 2 - rcx;
+  const ty = innerH / 2 - rcy;
+  return { innerW, innerH, tx, ty };
+}
+
 function renderMindMapCanvas() {
   if (!mindMapSvg || !mindMapNodesLayer || !mindMapWorkingCopy) return;
   const ns = "http://www.w3.org/2000/svg";
-  mindMapSvg.innerHTML = "";
   const { nodes } = mindMapWorkingCopy;
+  const { innerW, innerH, tx, ty } = computeMindMapViewLayout(nodes);
+  if (mindMapInner) {
+    mindMapInner.style.width = `${innerW}px`;
+    mindMapInner.style.height = `${innerH}px`;
+  }
+  if (mindMapWorld) {
+    mindMapWorld.style.transform = `translate(${tx}px, ${ty}px)`;
+  }
+
+  mindMapSvg.innerHTML = "";
 
   for (const n of nodes) {
     if (!n.parentId) continue;
@@ -1617,11 +1651,6 @@ function renderMindMapCanvas() {
 }
 
 function onMindMapMouseMove(e) {
-  if (mindMapPan && mindMapViewport) {
-    mindMapViewport.scrollLeft = mindMapPan.sl - (e.clientX - mindMapPan.x);
-    mindMapViewport.scrollTop = mindMapPan.st - (e.clientY - mindMapPan.y);
-    return;
-  }
   if (!mindMapDrag || !mindMapWorkingCopy) return;
   const node = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapDrag.id);
   if (!node) return;
@@ -1633,11 +1662,6 @@ function onMindMapMouseMove(e) {
 }
 
 function onMindMapMouseUp() {
-  if (mindMapPan) {
-    mindMapPan = null;
-    mindMapViewport?.classList.remove("isPanning");
-    return;
-  }
   if (mindMapDrag) {
     mindMapDrag = null;
     persistMindMapWorkingCopy();
@@ -1677,6 +1701,11 @@ function unloadMindMapEditor() {
   if (mindMapNameInput) mindMapNameInput.value = "";
   if (mindMapNodeLabelInput) mindMapNodeLabelInput.value = "";
   if (mindMapNodeDescInput) mindMapNodeDescInput.value = "";
+  if (mindMapInner) {
+    mindMapInner.style.width = "";
+    mindMapInner.style.height = "";
+  }
+  if (mindMapWorld) mindMapWorld.style.transform = "";
   if (mindMapParentSelect) {
     mindMapParentSelect.innerHTML = "";
     const opt = document.createElement("option");
@@ -2366,24 +2395,6 @@ mindMapApplyParentBtn?.addEventListener("click", () => {
   syncMindMapNodeLabelField();
   toast("Padre actualizado.");
 });
-
-if (mindMapViewport) {
-  mindMapViewport.addEventListener("mousedown", (e) => {
-    if (e.button !== 2) return;
-    if (e.target.closest(".mindNode")) return;
-    e.preventDefault();
-    mindMapPan = {
-      x: e.clientX,
-      y: e.clientY,
-      sl: mindMapViewport.scrollLeft,
-      st: mindMapViewport.scrollTop,
-    };
-    mindMapViewport.classList.add("isPanning");
-  });
-  mindMapViewport.addEventListener("contextmenu", (e) => {
-    if (!e.target.closest(".mindNode")) e.preventDefault();
-  });
-}
 
 exportBtn.addEventListener("click", () => {
   if (!currentWorkspace || !currentUserNumber) return;

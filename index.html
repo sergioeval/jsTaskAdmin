@@ -337,8 +337,7 @@
                   <p class="finePrint mindMapHelp">
                     Clic en un nodo para seleccionarlo; doble clic para editarlo en un popup. Los nodos hijos pueden
                     cambiar de padre con «Padre del nodo» o desde ese popup. Arrastrá con el botón izquierdo para
-                    moverlos. En el fondo del mapa (sin nodos ni líneas), mantené el clic derecho y arrastrá para
-                    desplazar la vista.
+                    moverlos. El lienzo se ajusta solo al contenido y centra la vista en el nodo raíz.
                   </p>
                   <div class="row wrap">
                     <input
@@ -382,8 +381,10 @@
                 </div>
                 <div id="mindMapViewport" class="mindMapViewport">
                   <div id="mindMapInner" class="mindMapInner">
-                    <svg id="mindMapSvg" class="mindMapSvg" aria-hidden="true"></svg>
-                    <div id="mindMapNodesLayer" class="mindMapNodesLayer"></div>
+                    <div id="mindMapWorld" class="mindMapWorld">
+                      <svg id="mindMapSvg" class="mindMapSvg" aria-hidden="true"></svg>
+                      <div id="mindMapNodesLayer" class="mindMapNodesLayer"></div>
+                    </div>
                   </div>
                 </div>
               </div>

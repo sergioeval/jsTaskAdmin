@@ -373,18 +373,26 @@ body.projectMode #page-project {
 }
 
 .mindMapViewport {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.22);
-  overflow: auto;
-  max-height: min(75vh, calc(100vh - 11rem));
-  min-height: min(520px, 55vh);
+  overflow: visible;
 }
 
 .mindMapInner {
   position: relative;
-  width: 1200px;
-  height: 1040px;
+  flex-shrink: 0;
+  /* width / height set in JS from node bounds + root-centered framing */
+}
+
+.mindMapWorld {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
 }
 
 .mindMapEdgeRow {
@@ -402,11 +410,6 @@ body.projectMode #page-project {
 /* Lines/labels must not steal clicks — pan uses empty canvas + RMB. */
 .mindMapSvg * {
   pointer-events: none;
-}
-
-.mindMapViewport.isPanning {
-  cursor: grabbing;
-  user-select: none;
 }
 
 .mindMapNodesLayer {
