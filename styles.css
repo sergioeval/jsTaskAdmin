@@ -320,22 +320,6 @@ body.projectMode #page-project {
   min-width: 180px;
 }
 
-#mindMapEditorSection .mindMapEdgeRow .input {
-  flex: 1;
-  min-width: 200px;
-}
-
-#mindMapEditorSection .mindMapParentRow {
-  align-items: center;
-  margin-top: 0.65rem;
-}
-
-#mindMapEditorSection .mindMapParentRow .mindMapParentSelect {
-  flex: 1;
-  min-width: 200px;
-  width: auto;
-}
-
 .mindMapHelp {
   margin: 0 0 0.75rem;
 }
@@ -372,6 +356,10 @@ body.projectMode #page-project {
   width: 100%;
 }
 
+#modalMindMapNode .mindMapQuickActions {
+  margin-top: 0.25rem;
+}
+
 .mindMapViewport {
   display: flex;
   justify-content: center;
@@ -395,10 +383,6 @@ body.projectMode #page-project {
   transform-origin: 0 0;
   pointer-events: none;
   overflow: visible;
-}
-
-.mindMapEdgeRow {
-  margin-top: 0.65rem;
 }
 
 .mindMapSvg {

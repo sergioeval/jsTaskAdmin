@@ -73,14 +73,6 @@ const mindMapEditorSection = document.getElementById("mindMapEditorSection");
 const mindMapNameInput = document.getElementById("mindMapNameInput");
 const mindMapSaveNameBtn = document.getElementById("mindMapSaveNameBtn");
 const mindMapDeleteMapBtn = document.getElementById("mindMapDeleteMapBtn");
-const mindMapNodeLabelInput = document.getElementById("mindMapNodeLabelInput");
-const mindMapApplyLabelBtn = document.getElementById("mindMapApplyLabelBtn");
-const mindMapNodeDescInput = document.getElementById("mindMapNodeDescInput");
-const mindMapApplyDescBtn = document.getElementById("mindMapApplyDescBtn");
-const mindMapEdgeLabelInput = document.getElementById("mindMapEdgeLabelInput");
-const mindMapApplyEdgeBtn = document.getElementById("mindMapApplyEdgeBtn");
-const mindMapAddChildBtn = document.getElementById("mindMapAddChildBtn");
-const mindMapDeleteNodeBtn = document.getElementById("mindMapDeleteNodeBtn");
 const mindMapInner = document.getElementById("mindMapInner");
 const mindMapWorld = document.getElementById("mindMapWorld");
 const mindMapSvg = document.getElementById("mindMapSvg");
@@ -94,8 +86,8 @@ const mindMapQuickEdgeInput = document.getElementById("mindMapQuickEdge");
 const mindMapQuickParentSelect = document.getElementById("mindMapQuickParent");
 const closeMindMapQuickBtn = document.getElementById("closeMindMapQuickBtn");
 const mindMapQuickCancelBtn = document.getElementById("mindMapQuickCancelBtn");
-const mindMapParentSelect = document.getElementById("mindMapParentSelect");
-const mindMapApplyParentBtn = document.getElementById("mindMapApplyParentBtn");
+const mindMapQuickAddChildBtn = document.getElementById("mindMapQuickAddChildBtn");
+const mindMapQuickDeleteNodeBtn = document.getElementById("mindMapQuickDeleteNodeBtn");
 
 const exportBtn = document.getElementById("exportBtn");
 const importFile = document.getElementById("importFile");
@@ -608,6 +600,8 @@ let mindMapDragListenersAttached = false;
 let pendingMindMapSelectId = null;
 /** Node id being edited in the double-click popup (if open). */
 let mindMapQuickEditNodeId = null;
+/** Delayed deselect on canvas background so double-click can use the current selection. */
+let mindMapInnerClearSelectionTimer = null;
 
 function attachMindMapDragListeners() {
   if (mindMapDragListenersAttached) return;
@@ -1419,52 +1413,6 @@ function persistMindMapWorkingCopy() {
   });
 }
 
-function syncMindMapEdgeLabelField() {
-  if (!mindMapEdgeLabelInput) return;
-  const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
-  if (!n || !n.parentId) {
-    mindMapEdgeLabelInput.value = "";
-    mindMapEdgeLabelInput.disabled = true;
-    mindMapEdgeLabelInput.placeholder = "Solo nodos con padre (seleccioná un hijo)";
-    return;
-  }
-  mindMapEdgeLabelInput.disabled = false;
-  mindMapEdgeLabelInput.placeholder = "Texto en la conexión (padre → este nodo)…";
-  mindMapEdgeLabelInput.value = String(n.edgeLabel || "");
-}
-
-function syncMindMapNodeDescField() {
-  if (!mindMapNodeDescInput) return;
-  const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
-  mindMapNodeDescInput.value = n ? String(n.description || "") : "";
-}
-
-function syncMindMapParentField() {
-  if (!mindMapParentSelect || !mindMapWorkingCopy) return;
-  const n = mindMapSelectedNodeId
-    ? mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId)
-    : null;
-  if (!n) {
-    mindMapParentSelect.innerHTML = "";
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "— Seleccioná un nodo —";
-    mindMapParentSelect.appendChild(opt);
-    mindMapParentSelect.disabled = true;
-    return;
-  }
-  fillMindMapParentSelect(mindMapParentSelect, n);
-}
-
-function syncMindMapNodeLabelField() {
-  if (!mindMapNodeLabelInput) return;
-  const n = mindMapWorkingCopy?.nodes.find((x) => x.id === mindMapSelectedNodeId);
-  mindMapNodeLabelInput.value = n ? n.label : "";
-  syncMindMapNodeDescField();
-  syncMindMapEdgeLabelField();
-  syncMindMapParentField();
-}
-
 function setMindMapNodeQuickModal(open) {
   if (!modalMindMapNode) return;
   modalMindMapNode.classList.toggle("hidden", !open);
@@ -1482,6 +1430,20 @@ function syncMindMapQuickEdgeFieldForNode(node) {
   mindMapQuickEdgeInput.value = String(node.edgeLabel || "");
 }
 
+function syncMindMapQuickModalActions() {
+  if (!mindMapQuickDeleteNodeBtn) return;
+  if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) {
+    mindMapQuickDeleteNodeBtn.disabled = true;
+    mindMapQuickDeleteNodeBtn.title = "";
+    return;
+  }
+  const onlyOne = mindMapWorkingCopy.nodes.length <= 1;
+  mindMapQuickDeleteNodeBtn.disabled = onlyOne;
+  mindMapQuickDeleteNodeBtn.title = onlyOne
+    ? "No podés borrar el único nodo."
+    : "Eliminar este nodo y todas las ramas debajo";
+}
+
 function closeMindMapNodeQuickEdit() {
   mindMapQuickEditNodeId = null;
   if (mindMapQuickForm) mindMapQuickForm.reset();
@@ -1493,6 +1455,7 @@ function closeMindMapNodeQuickEdit() {
     mindMapQuickParentSelect.innerHTML = "";
     mindMapQuickParentSelect.disabled = true;
   }
+  syncMindMapQuickModalActions();
   setMindMapNodeQuickModal(false);
 }
 
@@ -1502,23 +1465,40 @@ function openMindMapNodeQuickEdit(nodeId) {
   if (!node) return;
   mindMapQuickEditNodeId = nodeId;
   mindMapSelectedNodeId = nodeId;
-  syncMindMapNodeLabelField();
   if (mindMapQuickLabelInput) mindMapQuickLabelInput.value = node.label;
   if (mindMapQuickDescInput) mindMapQuickDescInput.value = String(node.description || "");
   syncMindMapQuickEdgeFieldForNode(node);
   fillMindMapParentSelect(mindMapQuickParentSelect, node);
+  syncMindMapQuickModalActions();
   setMindMapNodeQuickModal(true);
   queueMicrotask(() => mindMapQuickLabelInput?.focus());
 }
 
-function getMindMapParentForChild() {
+function mindMapGetRootNode() {
   if (!mindMapWorkingCopy) return null;
-  const { nodes } = mindMapWorkingCopy;
-  if (mindMapSelectedNodeId) {
-    const n = nodes.find((x) => x.id === mindMapSelectedNodeId);
-    if (n) return n;
-  }
-  return nodes.find((x) => x.parentId === null) || nodes[0] || null;
+  return mindMapWorkingCopy.nodes.find((x) => x.parentId === null) || mindMapWorkingCopy.nodes[0] || null;
+}
+
+/** Crea un hijo bajo `parentId`. Devuelve el id del nuevo nodo o null. */
+function mindMapAddChildUnderParent(parentId) {
+  if (!mindMapWorkingCopy) return null;
+  const parent = mindMapWorkingCopy.nodes.find((x) => x.id === parentId);
+  if (!parent) return null;
+  const pos = mindMapNextChildPosition(parent);
+  const nid = uuid();
+  mindMapWorkingCopy.nodes.push({
+    id: nid,
+    label: "Nuevo",
+    x: pos.x,
+    y: pos.y,
+    parentId: parent.id,
+    edgeLabel: "",
+    description: "",
+  });
+  mindMapSelectedNodeId = parent.id;
+  renderMindMapCanvas();
+  persistMindMapWorkingCopy();
+  return nid;
 }
 
 /** Place each new sibling offset so nodes do not stack (was mistaken for "overwrite"). */
@@ -1637,7 +1617,6 @@ function renderMindMapCanvas() {
       e.preventDefault();
       e.stopPropagation();
       mindMapSelectedNodeId = n.id;
-      syncMindMapNodeLabelField();
       mindMapDrag = null;
       mindMapDragCandidate = {
         id: n.id,
@@ -1707,13 +1686,14 @@ function loadMindMapForEditing(mapId) {
   mindMapSelectedNodeId =
     mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
   if (mindMapNameInput) mindMapNameInput.value = mindMapWorkingCopy.name;
-  syncMindMapNodeLabelField();
   setMindMapEditorVisible(true);
   renderMindMapCanvas();
   if (currentProjectTab === "mindmaps") attachMindMapDragListeners();
 }
 
 function unloadMindMapEditor() {
+  window.clearTimeout(mindMapInnerClearSelectionTimer);
+  mindMapInnerClearSelectionTimer = null;
   closeMindMapNodeQuickEdit();
   detachMindMapDragListeners();
   editingMindMapId = null;
@@ -1722,22 +1702,11 @@ function unloadMindMapEditor() {
   if (mindMapSvg) mindMapSvg.innerHTML = "";
   if (mindMapNodesLayer) mindMapNodesLayer.innerHTML = "";
   if (mindMapNameInput) mindMapNameInput.value = "";
-  if (mindMapNodeLabelInput) mindMapNodeLabelInput.value = "";
-  if (mindMapNodeDescInput) mindMapNodeDescInput.value = "";
   if (mindMapInner) {
     mindMapInner.style.width = "";
     mindMapInner.style.height = "";
   }
   if (mindMapWorld) mindMapWorld.style.transform = "";
-  if (mindMapParentSelect) {
-    mindMapParentSelect.innerHTML = "";
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "— Seleccioná un nodo —";
-    mindMapParentSelect.appendChild(opt);
-    mindMapParentSelect.disabled = true;
-  }
-  syncMindMapEdgeLabelField();
   setMindMapEditorVisible(false);
 }
 
@@ -2266,95 +2235,32 @@ mindMapDeleteMapBtn.addEventListener("click", () => {
   toast("Mapa eliminado.");
 });
 
-mindMapApplyLabelBtn.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
-    toast("Seleccioná un nodo.");
-    return;
-  }
-  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
-  if (!n) return;
-  n.label = String(mindMapNodeLabelInput?.value || "").trim().slice(0, 200) || "Nodo";
-  renderMindMapCanvas();
-  persistMindMapWorkingCopy();
-});
-
-mindMapApplyDescBtn?.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
-    toast("Seleccioná un nodo.");
-    return;
-  }
-  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
-  if (!n) return;
-  n.description = String(mindMapNodeDescInput?.value || "").trim().slice(0, 5000);
-  renderMindMapCanvas();
-  persistMindMapWorkingCopy();
-  toast("Descripción guardada.");
-});
-
-mindMapApplyEdgeBtn.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
-    toast("Seleccioná un nodo.");
-    return;
-  }
-  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
-  if (!n || !n.parentId) {
-    toast("La conexión solo aplica a nodos hijos (con padre).");
-    return;
-  }
-  n.edgeLabel = String(mindMapEdgeLabelInput?.value || "").trim().slice(0, 120);
-  renderMindMapCanvas();
-  persistMindMapWorkingCopy();
-  toast("Conexión actualizada.");
-});
-
-mindMapAddChildBtn.addEventListener("click", () => {
+mindMapInner.addEventListener("click", (e) => {
   if (!mindMapWorkingCopy) return;
-  const parent = getMindMapParentForChild();
+  if (e.target.closest?.(".mindNode")) return;
+  window.clearTimeout(mindMapInnerClearSelectionTimer);
+  mindMapInnerClearSelectionTimer = window.setTimeout(() => {
+    mindMapInnerClearSelectionTimer = null;
+    mindMapSelectedNodeId = null;
+    renderMindMapCanvas();
+  }, 280);
+});
+
+mindMapInner.addEventListener("dblclick", (e) => {
+  if (!mindMapWorkingCopy) return;
+  if (e.target.closest?.(".mindNode")) return;
+  e.preventDefault();
+  window.clearTimeout(mindMapInnerClearSelectionTimer);
+  mindMapInnerClearSelectionTimer = null;
+  const parent =
+    (mindMapSelectedNodeId && mindMapWorkingCopy.nodes.some((x) => x.id === mindMapSelectedNodeId)
+      ? mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId)
+      : null) || mindMapGetRootNode();
   if (!parent) return;
-  const pos = mindMapNextChildPosition(parent);
-  const nid = uuid();
-  mindMapWorkingCopy.nodes.push({
-    id: nid,
-    label: "Nuevo",
-    x: pos.x,
-    y: pos.y,
-    parentId: parent.id,
-    edgeLabel: "",
-    description: "",
-  });
-  // Keep parent selected so several clicks add siblings under the same node (not only under the last child).
-  mindMapSelectedNodeId = parent.id;
-  syncMindMapNodeLabelField();
-  renderMindMapCanvas();
-  persistMindMapWorkingCopy();
-  toast("Nodo agregado.");
-});
-
-mindMapDeleteNodeBtn.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
-    toast("Seleccioná un nodo.");
-    return;
-  }
-  if (mindMapWorkingCopy.nodes.length <= 1) {
-    toast("No podés borrar el único nodo.");
-    return;
-  }
-  const id = mindMapSelectedNodeId;
-  const toRemove = new Set([id, ...mindMapDescendantIds(id, mindMapWorkingCopy.nodes)]);
-  mindMapWorkingCopy.nodes = mindMapWorkingCopy.nodes.filter((n) => !toRemove.has(n.id));
-  mindMapSelectedNodeId =
-    mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
-  syncMindMapNodeLabelField();
-  renderMindMapCanvas();
-  persistMindMapWorkingCopy();
-  toast("Nodo eliminado.");
-});
-
-mindMapInner.addEventListener("click", () => {
-  if (!mindMapWorkingCopy) return;
-  mindMapSelectedNodeId = null;
-  syncMindMapNodeLabelField();
-  renderMindMapCanvas();
+  const nid = mindMapAddChildUnderParent(parent.id);
+  if (!nid) return;
+  openMindMapNodeQuickEdit(nid);
+  toast("Nuevo nodo (editá el texto y guardá).");
 });
 
 if (modalMindMapNode) {
@@ -2383,7 +2289,6 @@ if (mindMapQuickForm) {
     }
     renderMindMapCanvas();
     persistMindMapWorkingCopy();
-    syncMindMapNodeLabelField();
     closeMindMapNodeQuickEdit();
     toast("Nodo guardado.");
   });
@@ -2392,31 +2297,31 @@ if (mindMapQuickForm) {
 closeMindMapQuickBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
 mindMapQuickCancelBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
 
-mindMapApplyParentBtn?.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapSelectedNodeId) {
-    toast("Seleccioná un nodo.");
+mindMapQuickAddChildBtn?.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) return;
+  const nid = mindMapAddChildUnderParent(mindMapQuickEditNodeId);
+  if (!nid) return;
+  openMindMapNodeQuickEdit(nid);
+  toast("Hijo agregado.");
+});
+
+mindMapQuickDeleteNodeBtn?.addEventListener("click", () => {
+  if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) return;
+  if (mindMapWorkingCopy.nodes.length <= 1) {
+    toast("No podés borrar el único nodo.");
     return;
   }
-  const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId);
-  if (!n || !n.parentId) {
-    toast("Solo los nodos hijos pueden cambiar de padre.");
-    return;
-  }
-  const newP = String(mindMapParentSelect?.value || "");
-  const valid = mindMapValidParentIds(n.id, mindMapWorkingCopy.nodes);
-  if (!newP || !valid.includes(newP)) {
-    toast("Elegí un padre válido.");
-    return;
-  }
-  if (newP === n.parentId) {
-    toast("Ya es el padre actual.");
-    return;
-  }
-  n.parentId = newP;
+  const ok = confirm("¿Eliminar este nodo y todas las ramas debajo?");
+  if (!ok) return;
+  const id = mindMapQuickEditNodeId;
+  const toRemove = new Set([id, ...mindMapDescendantIds(id, mindMapWorkingCopy.nodes)]);
+  mindMapWorkingCopy.nodes = mindMapWorkingCopy.nodes.filter((n) => !toRemove.has(n.id));
+  mindMapSelectedNodeId =
+    mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
   renderMindMapCanvas();
   persistMindMapWorkingCopy();
-  syncMindMapNodeLabelField();
-  toast("Padre actualizado.");
+  closeMindMapNodeQuickEdit();
+  toast("Nodo eliminado.");
 });
 
 exportBtn.addEventListener("click", () => {

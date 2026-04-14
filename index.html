@@ -335,49 +335,9 @@
                 </div>
                 <div class="panel mindMapTools">
                   <p class="finePrint mindMapHelp">
-                    Clic en un nodo para seleccionarlo; doble clic abre una ventana modal para editarlo. Los nodos hijos pueden
-                    cambiar de padre con «Padre del nodo» o desde ese popup. Arrastrá con el botón izquierdo para
-                    moverlos. El lienzo se ajusta solo al contenido y enmarca el nodo raíz arriba y al centro.
+                    Clic en un nodo para seleccionarlo. Doble clic en un nodo abre el editor. Doble clic en el fondo del mapa
+                    crea un nodo hijo (del nodo seleccionado o de la raíz si no hay selección). Arrastrá un nodo para moverlo.
                   </p>
-                  <div class="row wrap">
-                    <input
-                      id="mindMapNodeLabelInput"
-                      class="input"
-                      type="text"
-                      maxlength="200"
-                      placeholder="Texto del nodo seleccionado…"
-                    />
-                    <button id="mindMapApplyLabelBtn" class="btnSecondary" type="button">Aplicar texto</button>
-                    <button id="mindMapAddChildBtn" class="btn" type="button">Agregar hijo</button>
-                    <button id="mindMapDeleteNodeBtn" class="btnSecondary" type="button">Eliminar nodo</button>
-                  </div>
-                  <div class="row wrap mindMapDescRow">
-                    <textarea
-                      id="mindMapNodeDescInput"
-                      class="input textarea mindMapDescInput"
-                      maxlength="5000"
-                      rows="3"
-                      placeholder="Descripción del nodo seleccionado…"
-                    ></textarea>
-                    <button id="mindMapApplyDescBtn" class="btnSecondary" type="button">Aplicar descripción</button>
-                  </div>
-                  <div class="row wrap mindMapParentRow">
-                    <label class="labelInline" for="mindMapParentSelect">Padre del nodo</label>
-                    <select id="mindMapParentSelect" class="select mindMapParentSelect" aria-label="Padre del nodo seleccionado">
-                      <option value="">— Seleccioná un nodo —</option>
-                    </select>
-                    <button id="mindMapApplyParentBtn" class="btnSecondary" type="button">Aplicar padre</button>
-                  </div>
-                  <div class="row wrap mindMapEdgeRow">
-                    <input
-                      id="mindMapEdgeLabelInput"
-                      class="input"
-                      type="text"
-                      maxlength="120"
-                      placeholder="Texto en la conexión (padre → este nodo)…"
-                    />
-                    <button id="mindMapApplyEdgeBtn" class="btnSecondary" type="button">Aplicar conexión</button>
-                  </div>
                 </div>
                 <div id="mindMapViewport" class="mindMapViewport">
                   <div id="mindMapInner" class="mindMapInner">
@@ -486,6 +446,10 @@
               placeholder="Solo aplica a nodos hijos…"
             />
             <p class="finePrint mindMapQuickEdgeHint">En la raíz del mapa este campo no aplica.</p>
+          </div>
+          <div class="row wrap mindMapQuickActions">
+            <button id="mindMapQuickAddChildBtn" class="btn" type="button">Agregar hijo</button>
+            <button id="mindMapQuickDeleteNodeBtn" class="btnSecondary" type="button">Eliminar nodo</button>
           </div>
           <div class="row wrap">
             <button id="mindMapQuickCancelBtn" class="btnSecondary" type="button">Cancelar</button>
