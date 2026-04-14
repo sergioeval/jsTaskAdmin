@@ -1547,6 +1547,15 @@ function computeMindMapViewLayout(nodes) {
   return { innerW, innerH, tx, ty };
 }
 
+/** Actualiza el borde de selección sin reemplazar el DOM (evita romper el `dblclick`). */
+function mindMapSyncNodeSelectionHighlight() {
+  if (!mindMapNodesLayer) return;
+  for (const el of mindMapNodesLayer.querySelectorAll(".mindNode")) {
+    const id = el.dataset.nodeId;
+    el.classList.toggle("isSelected", id === mindMapSelectedNodeId);
+  }
+}
+
 function renderMindMapCanvas() {
   if (!mindMapSvg || !mindMapNodesLayer || !mindMapWorkingCopy) return;
   const ns = "http://www.w3.org/2000/svg";
@@ -1625,7 +1634,7 @@ function renderMindMapCanvas() {
         nodeStartX: n.x,
         nodeStartY: n.y,
       };
-      renderMindMapCanvas();
+      mindMapSyncNodeSelectionHighlight();
     });
     div.addEventListener("click", (e) => {
       e.stopPropagation();
