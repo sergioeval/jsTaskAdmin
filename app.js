@@ -2113,6 +2113,21 @@ if (taskLinkedNotesDropdown) {
   }
 }
 
+if (taskLinkedMapsDropdown) {
+  const trigger = taskLinkedMapsDropdown.querySelector(".dropdown-trigger");
+  const menu = taskLinkedMapsDropdown.querySelector(".dropdown-menu");
+  if (trigger && menu) {
+    trigger.addEventListener("click", () => {
+      menu.classList.toggle("hidden");
+    });
+    document.addEventListener("click", (e) => {
+      if (!taskLinkedMapsDropdown.contains(e.target)) {
+        menu.classList.add("hidden");
+      }
+    });
+  }
+}
+
 logoutBtn.addEventListener("click", () => logout());
 
 newProjectBtn.addEventListener("click", () => {
