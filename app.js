@@ -1481,6 +1481,8 @@ function openLinkedNoteEditor(noteId) {
 
 let linkedMapWorkingCopy = null;
 let linkedMapSelectedNodeId = null;
+let linkedMapDrag = null;
+let linkedMapDragCandidate = null;
 
 function openLinkedMapEditor(mapId) {
   if (!mapId) return;
@@ -1494,15 +1496,35 @@ function openLinkedMapEditor(mapId) {
     linkedMapNameInput.value = linkedMapWorkingCopy.name || "";
     linkedMapModalTitle.textContent = linkedMapWorkingCopy.name || "Map";
     renderLinkedMapCanvas();
+    attachLinkedMapDragListeners();
     setLinkedMapModalVisible(true);
     linkedMapNameInput.focus();
   }
 }
 
+function attachLinkedMapDragListeners() {
+  document.addEventListener("mousemove", onLinkedMapMouseMove);
+  document.addEventListener("mouseup", onLinkedMapMouseUp);
+  if (linkedMapViewport) {
+    linkedMapViewport.addEventListener("dblclick", onLinkedMapBackgroundDblClick);
+  }
+}
+
+function detachLinkedMapDragListeners() {
+  document.removeEventListener("mousemove", onLinkedMapMouseMove);
+  document.removeEventListener("mouseup", onLinkedMapMouseUp);
+  if (linkedMapViewport) {
+    linkedMapViewport.removeEventListener("dblclick", onLinkedMapBackgroundDblClick);
+  }
+}
+
 function closeLinkedMapEditor() {
+  detachLinkedMapDragListeners();
   setLinkedMapModalVisible(false);
   linkedMapWorkingCopy = null;
   linkedMapSelectedNodeId = null;
+  linkedMapDrag = null;
+  linkedMapDragCandidate = null;
   if (linkedMapSvg) linkedMapSvg.innerHTML = "";
   if (linkedMapNodesLayer) linkedMapNodesLayer.innerHTML = "";
   if (linkedMapNameInput) linkedMapNameInput.value = "";
@@ -1577,8 +1599,110 @@ function renderLinkedMapCanvas() {
     div.dataset.nodeId = n.id;
     const desc = String(n.description || "").trim();
     if (desc) div.title = desc.length > 240 ? `${desc.slice(0, 238)}…` : desc;
+    div.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      linkedMapSelectedNodeId = n.id;
+      linkedMapDrag = null;
+      linkedMapDragCandidate = {
+        id: n.id,
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        nodeStartX: n.x,
+        nodeStartY: n.y,
+      };
+      renderLinkedMapCanvas();
+    });
+    div.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+    div.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      linkedMapDrag = null;
+      linkedMapDragCandidate = null;
+      openLinkedMapNodeQuickEdit(n.id);
+      renderLinkedMapCanvas();
+    });
     linkedMapNodesLayer.appendChild(div);
   }
+}
+
+function onLinkedMapMouseMove(e) {
+  if (!linkedMapWorkingCopy) return;
+  if (linkedMapDragCandidate && !linkedMapDrag) {
+    const dx = e.clientX - linkedMapDragCandidate.startMouseX;
+    const dy = e.clientY - linkedMapDragCandidate.startMouseY;
+    if (dx * dx + dy * dy >= MIND_DRAG_THRESHOLD_SQ) {
+      linkedMapDrag = { ...linkedMapDragCandidate };
+      linkedMapDragCandidate = null;
+    }
+  }
+  if (!linkedMapDrag) return;
+  const node = linkedMapWorkingCopy.nodes.find((x) => x.id === linkedMapDrag.id);
+  if (!node) return;
+  const dx = e.clientX - linkedMapDrag.startMouseX;
+  const dy = e.clientY - linkedMapDrag.startMouseY;
+  node.x = clampMindCoord(linkedMapDrag.nodeStartX + dx);
+  node.y = clampMindCoord(linkedMapDrag.nodeStartY + dy);
+  renderLinkedMapCanvas();
+}
+
+function onLinkedMapMouseUp() {
+  if (linkedMapDrag) {
+    linkedMapDrag = null;
+    persistLinkedMapWorkingCopy();
+  }
+  linkedMapDragCandidate = null;
+}
+
+function onLinkedMapBackgroundDblClick(e) {
+  if (!linkedMapWorkingCopy) return;
+  if (e.target !== linkedMapNodesLayer && e.target !== linkedMapSvg && e.target !== linkedMapWorld && e.target !== linkedMapInner) return;
+  const parentId = linkedMapSelectedNodeId || (linkedMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id);
+  if (!parentId) return;
+  const parent = linkedMapWorkingCopy.nodes.find((x) => x.id === parentId);
+  if (!parent) return;
+  const pos = mindMapNextChildPosition(parent);
+  const nid = uuid();
+  linkedMapWorkingCopy.nodes.push({
+    id: nid,
+    label: "New",
+    x: pos.x,
+    y: pos.y,
+    parentId: parent.id,
+    edgeLabel: "",
+    description: "",
+  });
+  linkedMapSelectedNodeId = parent.id;
+  renderLinkedMapCanvas();
+  persistLinkedMapWorkingCopy();
+}
+
+function openLinkedMapNodeQuickEdit(nodeId) {
+  if (!linkedMapWorkingCopy || !modalMindMapNode) return;
+  const node = linkedMapWorkingCopy.nodes.find((x) => x.id === nodeId);
+  if (!node) return;
+  mindMapQuickEditNodeId = nodeId;
+  linkedMapSelectedNodeId = nodeId;
+  if (mindMapQuickLabelInput) mindMapQuickLabelInput.value = node.label;
+  if (mindMapQuickDescInput) mindMapQuickDescInput.value = String(node.description || "");
+  syncMindMapQuickEdgeFieldForNode(node);
+  fillMindMapParentSelect(mindMapQuickParentSelect, node);
+  syncMindMapQuickModalActions();
+  setMindMapNodeQuickModal(true);
+  queueMicrotask(() => mindMapQuickLabelInput?.focus());
+}
+
+function persistLinkedMapWorkingCopy() {
+  if (!linkedMapWorkingCopy || !currentWorkspace) return;
+  const project = getCurrentProject(currentWorkspace);
+  if (!project || !Array.isArray(project.mindMaps)) return;
+  const mapIndex = project.mindMaps.findIndex((m) => m.id === linkedMapWorkingCopy.id);
+  if (mapIndex === -1) return;
+  project.mindMaps[mapIndex] = linkedMapWorkingCopy;
+  saveProject(currentWorkspace);
 }
 
 function closeNoteEditor() {
@@ -2752,8 +2876,11 @@ if (modalMindMapNode) {
 if (mindMapQuickForm) {
   mindMapQuickForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) return;
-    const n = mindMapWorkingCopy.nodes.find((x) => x.id === mindMapQuickEditNodeId);
+    if (!mindMapQuickEditNodeId) return;
+    const isLinkedMap = linkedMapWorkingCopy && linkedMapWorkingCopy.nodes.some((n) => n.id === mindMapQuickEditNodeId);
+    const workingCopy = isLinkedMap ? linkedMapWorkingCopy : mindMapWorkingCopy;
+    if (!workingCopy) return;
+    const n = workingCopy.nodes.find((x) => x.id === mindMapQuickEditNodeId);
     if (!n) {
       closeMindMapNodeQuickEdit();
       return;
@@ -2761,14 +2888,20 @@ if (mindMapQuickForm) {
     n.label = String(mindMapQuickLabelInput?.value || "").trim().slice(0, 200) || "Node";
     n.description = String(mindMapQuickDescInput?.value || "").trim().slice(0, 5000);
     if (n.parentId) {
-      const valid = mindMapValidParentIds(n.id, mindMapWorkingCopy.nodes);
+      const valid = mindMapValidParentIds(n.id, workingCopy.nodes);
       const newP = String(mindMapQuickParentSelect?.value || "");
       if (newP && valid.includes(newP)) n.parentId = newP;
       else if (newP && !valid.includes(newP)) toast("Invalid parent.");
       n.edgeLabel = String(mindMapQuickEdgeInput?.value || "").trim().slice(0, 120);
     }
-    renderMindMapCanvas();
-    persistMindMapWorkingCopy();
+    if (isLinkedMap) {
+      renderLinkedMapCanvas();
+      persistLinkedMapWorkingCopy();
+      renderMindMapsList();
+    } else {
+      renderMindMapCanvas();
+      persistMindMapWorkingCopy();
+    }
     closeMindMapNodeQuickEdit();
     toast("Node saved.");
   });
@@ -2778,28 +2911,61 @@ closeMindMapQuickBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit(
 mindMapQuickCancelBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
 
 mindMapQuickAddChildBtn?.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) return;
-  const nid = mindMapAddChildUnderParent(mindMapQuickEditNodeId);
-  if (!nid) return;
+  if (!mindMapQuickEditNodeId) return;
+  const isLinkedMap = linkedMapWorkingCopy && linkedMapWorkingCopy.nodes.some((n) => n.id === mindMapQuickEditNodeId);
+  const workingCopy = isLinkedMap ? linkedMapWorkingCopy : mindMapWorkingCopy;
+  if (!workingCopy) return;
+  const parent = workingCopy.nodes.find((x) => x.id === mindMapQuickEditNodeId);
+  if (!parent) return;
+  const pos = mindMapNextChildPosition(parent);
+  const nid = uuid();
+  workingCopy.nodes.push({
+    id: nid,
+    label: "New",
+    x: pos.x,
+    y: pos.y,
+    parentId: parent.id,
+    edgeLabel: "",
+    description: "",
+  });
+  if (isLinkedMap) {
+    renderLinkedMapCanvas();
+    persistLinkedMapWorkingCopy();
+    renderMindMapsList();
+  } else {
+    renderMindMapCanvas();
+    persistMindMapWorkingCopy();
+  }
   openMindMapNodeQuickEdit(nid);
   toast("Child added.");
 });
 
 mindMapQuickDeleteNodeBtn?.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) return;
-  if (mindMapWorkingCopy.nodes.length <= 1) {
+  if (!mindMapQuickEditNodeId) return;
+  const isLinkedMap = linkedMapWorkingCopy && linkedMapWorkingCopy.nodes.some((n) => n.id === mindMapQuickEditNodeId);
+  const workingCopy = isLinkedMap ? linkedMapWorkingCopy : mindMapWorkingCopy;
+  if (!workingCopy) return;
+  if (workingCopy.nodes.length <= 1) {
     toast("You cannot delete the only node.");
     return;
   }
   const ok = confirm("Delete this node and all branches below?");
   if (!ok) return;
   const id = mindMapQuickEditNodeId;
-  const toRemove = new Set([id, ...mindMapDescendantIds(id, mindMapWorkingCopy.nodes)]);
-  mindMapWorkingCopy.nodes = mindMapWorkingCopy.nodes.filter((n) => !toRemove.has(n.id));
-  mindMapSelectedNodeId =
-    mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
-  renderMindMapCanvas();
-  persistMindMapWorkingCopy();
+  const toRemove = new Set([id, ...mindMapDescendantIds(id, workingCopy.nodes)]);
+  workingCopy.nodes = workingCopy.nodes.filter((n) => !toRemove.has(n.id));
+  if (isLinkedMap) {
+    linkedMapSelectedNodeId =
+      linkedMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || linkedMapWorkingCopy.nodes[0]?.id || null;
+    renderLinkedMapCanvas();
+    persistLinkedMapWorkingCopy();
+    renderMindMapsList();
+  } else {
+    mindMapSelectedNodeId =
+      mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
+    renderMindMapCanvas();
+    persistMindMapWorkingCopy();
+  }
   closeMindMapNodeQuickEdit();
   toast("Node deleted.");
 });
