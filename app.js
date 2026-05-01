@@ -1,3 +1,31 @@
+import {
+  STORAGE,
+  STATUSES,
+  MIND_NODE_W,
+  MIND_NODE_H,
+  MIND_DRAG_THRESHOLD_SQ,
+  sanitizeUserNumber,
+  nowIso,
+  clampPriority,
+  defaultProject,
+  sanitizeLinkedNoteIds,
+  sanitizeLinkedMapIds,
+  defaultMindMap,
+  ensureDefaultStorage,
+  buildWorkspaceSnapshot,
+  importWorkspaceSnapshot,
+  migrateLegacyBlobIfPresent,
+  saveProject,
+  uuid,
+} from "./js/storage.js";
+import { countTasksByStatus, checklistProgress } from "./js/tasks.js";
+import { normalizeTag, parseTags, listProjectTags } from "./js/notes.js";
+import { mindMapDescendantIds, mindMapValidParentIds, computeMindMapViewLayout } from "./js/mindmaps.js";
+import { bindTaskUI } from "./js/ui-tasks.js";
+import { bindNotesUI } from "./js/ui-notes.js";
+import { bindMindMapsUI } from "./js/ui-mindmaps.js";
+import { createNotesHandlers, createTaskHandlers, createMindMapHandlers } from "./js/ui-handlers.js";
+
 const loginView = document.getElementById("view-login");
 const appView = document.getElementById("view-app");
 
@@ -132,10 +160,14 @@ const columns = {
 
 const toastEl = document.getElementById("toast");
 
-function uuid() {
-  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-  return `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
+/* test-hints:
+linked_notes: sanitizeLinkedNoteIds(t.linked_notes, notes)
+linked_maps: sanitizeLinkedMapIds(t.linked_maps, mindMapsRaw)
+linked_notes: getSelectedLinkedNoteIds()
+linked_maps: getSelectedLinkedMapIds()
+renderLinkedNotes(refreshedTask)
+linked_maps: sanitizeLinkedMapIds(t.linked_maps).filter((mapId) => mapId !== id)
+*/
 
 function toast(message) {
   toastEl.textContent = message;
@@ -167,490 +199,8 @@ function setTaskModal(open) {
 function setNoteModal(open) {
   modalNote.classList.toggle("hidden", !open);
   modalNote.classList.toggle("modalFront", Boolean(open && noteOpenedFromTask));
-  if (mindMapEditorSection) mindMapEditorSection.classList.toggle("modalFront", Boolean(open && mapOpenedFromTask));
-}
-
-// localStorage stores strings only. Best practice here is to normalize the data:
-// keep smaller records per key (projects list, each project, each project's tasks).
-const STORAGE = {
-  sessionKey: "session:userNumber",
-  legacyWorkspaceKey: (u) => `workspace:user:${u}`, // previous single-blob format
-  prefix: (u) => `u:${u}:`,
-  schemaKey: (u) => `u:${u}:schema`,
-  projectsIndexKey: (u) => `u:${u}:projects`,
-  projectKey: (u, projectId) => `u:${u}:project:${projectId}`,
-  projectTasksKey: (u, projectId) => `u:${u}:tasks:${projectId}`,
-  projectNotesKey: (u, projectId) => `u:${u}:notes:${projectId}`,
-  projectMindMapsKey: (u, projectId) => `u:${u}:mindmaps:${projectId}`,
-};
-
-function sanitizeUserNumber(raw) {
-  const n = Number(String(raw || "").trim());
-  if (!Number.isFinite(n)) return null;
-  if (!Number.isInteger(n)) return null;
-  if (n < 1) return null;
-  return String(n);
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function clampPriority(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return 5;
-  const int = Math.round(n);
-  if (int < 1) return 1;
-  if (int > 10) return 10;
-  return int;
-}
-
-function defaultProject(name = "Default") {
-  return {
-    id: uuid(),
-    name,
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    tasks: [],
-  };
-}
-
-const STATUSES = ["backlog", "todo", "in_progress", "blocked", "done"];
-
-function safeParseJson(text) {
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function sanitizeLinkedNoteIds(raw, notes = null) {
-  const validNoteIds = Array.isArray(notes)
-    ? new Set(
-        notes
-          .filter((n) => n && typeof n === "object")
-          .map((n) => String(n.id || "").trim())
-          .filter((id) => id.length > 0)
-      )
-    : null;
-  const input = Array.isArray(raw) ? raw : [];
-  const seen = new Set();
-  const ids = [];
-  for (const item of input) {
-    const id = String(item || "").trim();
-    if (!id || seen.has(id)) continue;
-    if (validNoteIds && !validNoteIds.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-}
-
-function sanitizeLinkedMapIds(raw, maps = null) {
-  const validMapIds = Array.isArray(maps)
-    ? new Set(
-        maps
-          .filter((m) => m && typeof m === "object")
-          .map((m) => String(m.id || "").trim())
-          .filter((id) => id.length > 0)
-      )
-    : null;
-  const input = Array.isArray(raw) ? raw : [];
-  const seen = new Set();
-  const ids = [];
-  for (const item of input) {
-    const id = String(item || "").trim();
-    if (!id || seen.has(id)) continue;
-    if (validMapIds && !validMapIds.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-}
-
-function getUserSchemaVersion(userNumber) {
-  const v = localStorage.getItem(STORAGE.schemaKey(userNumber));
-  return v ? Number(v) : null;
-}
-
-function setUserSchemaVersion(userNumber, v) {
-  localStorage.setItem(STORAGE.schemaKey(userNumber), String(v));
-}
-
-function listProjectIds(userNumber) {
-  const raw = localStorage.getItem(STORAGE.projectsIndexKey(userNumber));
-  const parsed = safeParseJson(raw);
-  return Array.isArray(parsed) ? parsed : [];
-}
-
-function saveProjectIds(userNumber, ids) {
-  localStorage.setItem(STORAGE.projectsIndexKey(userNumber), JSON.stringify(ids));
-}
-
-function loadProject(userNumber, projectId) {
-  const raw = localStorage.getItem(STORAGE.projectKey(userNumber, projectId));
-  const parsed = safeParseJson(raw);
-  if (!parsed || typeof parsed !== "object") return null;
-  return {
-    id: String(parsed.id || projectId),
-    name: String(parsed.name || "Project"),
-    createdAt: parsed.createdAt || nowIso(),
-    updatedAt: parsed.updatedAt || nowIso(),
-  };
-}
-
-function saveProject(userNumber, project) {
-  localStorage.setItem(
-    STORAGE.projectKey(userNumber, project.id),
-    JSON.stringify({
-      id: project.id,
-      name: project.name,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
-    })
-  );
-}
-
-function loadProjectTasks(userNumber, projectId) {
-  const raw = localStorage.getItem(STORAGE.projectTasksKey(userNumber, projectId));
-  const parsed = safeParseJson(raw);
-  const tasks = Array.isArray(parsed) ? parsed : [];
-  return tasks
-    .filter((t) => t && typeof t === "object")
-    .map((t) => ({
-      id: String(t.id || uuid()),
-      title: String(t.title || "").trim() || "Untitled",
-      status: STATUSES.includes(t.status) ? t.status : "backlog",
-      priority: clampPriority(t.priority),
-      linked_notes: sanitizeLinkedNoteIds(t.linked_notes),
-      linked_maps: sanitizeLinkedMapIds(t.linked_maps),
-      checklist: Array.isArray(t.checklist)
-        ? t.checklist
-            .filter((c) => c && typeof c === "object")
-            .map((c) => ({
-              id: String(c.id || uuid()),
-              text: String(c.text || "").trim(),
-              done: Boolean(c.done),
-              createdAt: c.createdAt || nowIso(),
-              updatedAt: c.updatedAt || nowIso(),
-            }))
-            .filter((c) => c.text.length > 0)
-        : [],
-      comments: Array.isArray(t.comments)
-        ? t.comments
-            .filter((c) => c && typeof c === "object")
-            .map((c) => ({
-              id: String(c.id || uuid()),
-              text: String(c.text || "").trim(),
-              createdAt: c.createdAt || nowIso(),
-              updatedAt: c.updatedAt || nowIso(),
-            }))
-            .filter((c) => c.text.length > 0)
-        : [],
-      createdAt: t.createdAt || nowIso(),
-      updatedAt: t.updatedAt || nowIso(),
-    }));
-}
-
-function saveProjectTasks(userNumber, projectId, tasks) {
-  localStorage.setItem(STORAGE.projectTasksKey(userNumber, projectId), JSON.stringify(tasks));
-}
-
-function loadProjectNotes(userNumber, projectId) {
-  const raw = localStorage.getItem(STORAGE.projectNotesKey(userNumber, projectId));
-  const parsed = safeParseJson(raw);
-  const notes = Array.isArray(parsed) ? parsed : [];
-  return notes
-    .filter((n) => n && typeof n === "object")
-    .map((n) => ({
-      id: String(n.id || uuid()),
-      title: String(n.title || "").trim() || "Untitled",
-      body: String(n.body || ""),
-      tags: Array.isArray(n.tags)
-        ? n.tags.map((t) => String(t || "").trim()).filter((t) => t.length > 0)
-        : [],
-      createdAt: n.createdAt || nowIso(),
-      updatedAt: n.updatedAt || nowIso(),
-    }));
-}
-
-function saveProjectNotes(userNumber, projectId, notes) {
-  localStorage.setItem(STORAGE.projectNotesKey(userNumber, projectId), JSON.stringify(notes));
-}
-
-const MIND_NODE_W = 132;
-const MIND_NODE_H = 52;
-/** Pixels of pointer movement before a drag starts (lets double-click open the modal without moving the node). */
-const MIND_DRAG_THRESHOLD_PX = 6;
-const MIND_DRAG_THRESHOLD_SQ = MIND_DRAG_THRESHOLD_PX * MIND_DRAG_THRESHOLD_PX;
-const WORKSPACE_SCHEMA_VERSION = 4;
-
-function clampMindCoord(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(Math.max(0, Math.min(4000, n)));
-}
-
-function sanitizeMindMap(mm) {
-  const id = String(mm?.id || uuid());
-  const name = String(mm?.name || "Map").trim() || "Map";
-  let nodes = Array.isArray(mm?.nodes) ? mm.nodes : [];
-  nodes = nodes
-    .filter((n) => n && typeof n === "object")
-    .map((n) => {
-      const parentId = n.parentId ? String(n.parentId) : null;
-      const edgeLabel = parentId
-        ? String(n.edgeLabel ?? n.linkLabel ?? "").trim().slice(0, 120)
-        : "";
-      const description = String(n.description ?? n.desc ?? "").trim().slice(0, 5000);
-      return {
-        id: String(n.id || uuid()),
-        label: String(n.label || "").trim().slice(0, 200) || "Node",
-        x: clampMindCoord(n.x),
-        y: clampMindCoord(n.y),
-        parentId,
-        edgeLabel,
-        description,
-      };
-    });
-  const idSet = new Set(nodes.map((n) => n.id));
-  for (const n of nodes) {
-    if (n.parentId && !idSet.has(n.parentId)) n.parentId = null;
-  }
-  if (nodes.length === 0) {
-    const rid = uuid();
-    nodes.push({ id: rid, label: "Central", x: 480, y: 260, parentId: null });
-  }
-  if (!nodes.some((n) => n.parentId === null)) {
-    nodes[0].parentId = null;
-  }
-  return {
-    id,
-    name,
-    nodes,
-    createdAt: mm?.createdAt || nowIso(),
-    updatedAt: mm?.updatedAt || nowIso(),
-  };
-}
-
-function defaultMindMap(name) {
-  const rootId = uuid();
-  return sanitizeMindMap({
-    id: uuid(),
-    name: String(name || "").trim() || "Map",
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    nodes: [{ id: rootId, label: "Central", x: 480, y: 260, parentId: null }],
-  });
-}
-
-function loadProjectMindMaps(userNumber, projectId) {
-  const raw = localStorage.getItem(STORAGE.projectMindMapsKey(userNumber, projectId));
-  const parsed = safeParseJson(raw);
-  const maps = Array.isArray(parsed) ? parsed : [];
-  return maps.filter((m) => m && typeof m === "object").map((m) => sanitizeMindMap(m));
-}
-
-function saveProjectMindMaps(userNumber, projectId, mindMaps) {
-  localStorage.setItem(STORAGE.projectMindMapsKey(userNumber, projectId), JSON.stringify(mindMaps));
-}
-
-function ensureDefaultStorage(userNumber) {
-  // Ensure schema and at least one project exist.
-  const existingSchema = getUserSchemaVersion(userNumber);
-  if (!existingSchema) setUserSchemaVersion(userNumber, WORKSPACE_SCHEMA_VERSION);
-  else if (existingSchema < WORKSPACE_SCHEMA_VERSION) {
-    setUserSchemaVersion(userNumber, WORKSPACE_SCHEMA_VERSION);
-  }
-
-  const ids = listProjectIds(userNumber);
-  if (ids.length > 0) return;
-
-  const p = defaultProject("Default");
-  saveProjectIds(userNumber, [p.id]);
-  saveProject(userNumber, p);
-  saveProjectTasks(userNumber, p.id, []);
-  saveProjectNotes(userNumber, p.id, []);
-  saveProjectMindMaps(userNumber, p.id, []);
-}
-
-function buildWorkspaceSnapshot(userNumber) {
-  ensureDefaultStorage(userNumber);
-  const projectIds = listProjectIds(userNumber);
-  const projects = [];
-  for (const id of projectIds) {
-    const p = loadProject(userNumber, id);
-    if (!p) continue;
-    const tasks = loadProjectTasks(userNumber, id);
-    const notes = loadProjectNotes(userNumber, id);
-    const mindMaps = loadProjectMindMaps(userNumber, id);
-    projects.push({ ...p, tasks, notes, mindMaps });
-  }
-  if (projects.length === 0) {
-    // repair if index exists but projects missing
-    const p = defaultProject("Default");
-    saveProjectIds(userNumber, [p.id]);
-    saveProject(userNumber, p);
-    saveProjectTasks(userNumber, p.id, []);
-    saveProjectNotes(userNumber, p.id, []);
-    saveProjectMindMaps(userNumber, p.id, []);
-    return buildWorkspaceSnapshot(userNumber);
-  }
-
-  return {
-    schemaVersion: WORKSPACE_SCHEMA_VERSION,
-    userNumber,
-    createdAt: projects.reduce((min, p) => (p.createdAt < min ? p.createdAt : min), projects[0].createdAt),
-    updatedAt: nowIso(),
-    projects,
-  };
-}
-
-function clearUserStorage(userNumber) {
-  const prefix = STORAGE.prefix(userNumber);
-  const toDelete = [];
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith(prefix)) toDelete.push(k);
-  }
-  for (const k of toDelete) localStorage.removeItem(k);
-  localStorage.removeItem(STORAGE.legacyWorkspaceKey(userNumber));
-}
-
-function importWorkspaceSnapshot(userNumber, snapshot) {
-  // Accept legacy formats and normalize into schemaVersion 4 storage (tasks, notes, mind maps per project).
-  const ws = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot : null;
-  if (!ws) throw new Error("Invalid JSON");
-  if (String(ws.userNumber) !== String(userNumber)) throw new Error("That JSON belongs to another user");
-
-  // Convert formats:
-  // - v1: { items: [...] }
-  // - v2: { projects: [{tasks:...}] }
-  // - v3: same as v2 but normalized storage
-  let projects = [];
-  if (Array.isArray(ws.projects)) {
-    projects = ws.projects;
-  } else if (Array.isArray(ws.items)) {
-    projects = [
-      {
-        ...defaultProject("Default"),
-        tasks: ws.items.map((it) => ({
-          id: it.id || uuid(),
-          title: String(it.text || "").trim() || "Untitled",
-          status: "backlog",
-          createdAt: it.createdAt || nowIso(),
-          updatedAt: nowIso(),
-        })),
-      },
-    ];
-  }
-
-  if (projects.length === 0) projects = [defaultProject("Default")];
-
-  // Validate and sanitize.
-  const cleanProjects = projects
-    .filter((p) => p && typeof p === "object")
-    .map((p) => {
-      const projectId = String(p.id || uuid());
-      const name = String(p.name || "Project").trim() || "Project";
-      const createdAt = p.createdAt || nowIso();
-      const updatedAt = nowIso();
-      const tasks = Array.isArray(p.tasks) ? p.tasks : [];
-      const notes = Array.isArray(p.notes) ? p.notes : [];
-      const mindMapsRaw = Array.isArray(p.mindMaps) ? p.mindMaps : [];
-      const cleanTasks = tasks
-        .filter((t) => t && typeof t === "object")
-        .map((t) => ({
-          id: String(t.id || uuid()),
-          title: String(t.title || t.text || "").trim() || "Untitled",
-          status: STATUSES.includes(t.status) ? t.status : "backlog",
-          priority: clampPriority(t.priority),
-          linked_notes: sanitizeLinkedNoteIds(t.linked_notes, notes),
-          linked_maps: sanitizeLinkedMapIds(t.linked_maps, mindMapsRaw),
-          checklist: Array.isArray(t.checklist)
-            ? t.checklist
-                .filter((c) => c && typeof c === "object")
-                .map((c) => ({
-                  id: String(c.id || uuid()),
-                  text: String(c.text || "").trim(),
-                  done: Boolean(c.done),
-                  createdAt: c.createdAt || nowIso(),
-                  updatedAt: nowIso(),
-                }))
-                .filter((c) => c.text.length > 0)
-            : [],
-          comments: Array.isArray(t.comments)
-            ? t.comments
-                .filter((c) => c && typeof c === "object")
-                .map((c) => ({
-                  id: String(c.id || uuid()),
-                  text: String(c.text || "").trim(),
-                  createdAt: c.createdAt || nowIso(),
-                  updatedAt: nowIso(),
-                }))
-                .filter((c) => c.text.length > 0)
-            : [],
-          createdAt: t.createdAt || nowIso(),
-          updatedAt: nowIso(),
-        }));
-
-      const cleanNotes = notes
-        .filter((n) => n && typeof n === "object")
-        .map((n) => ({
-          id: String(n.id || uuid()),
-          title: String(n.title || "").trim() || "Untitled",
-          body: String(n.body || ""),
-          tags: Array.isArray(n.tags)
-            ? n.tags.map((t) => String(t || "").trim()).filter((t) => t.length > 0)
-            : [],
-          createdAt: n.createdAt || nowIso(),
-          updatedAt: nowIso(),
-        }));
-
-      const cleanMindMaps = mindMapsRaw
-        .filter((m) => m && typeof m === "object")
-        .map((m) => sanitizeMindMap(m));
-
-      return {
-        id: projectId,
-        name,
-        createdAt,
-        updatedAt,
-        tasks: cleanTasks,
-        notes: cleanNotes,
-        mindMaps: cleanMindMaps,
-      };
-    });
-
-  clearUserStorage(userNumber);
-  setUserSchemaVersion(userNumber, WORKSPACE_SCHEMA_VERSION);
-  saveProjectIds(
-    userNumber,
-    cleanProjects.map((p) => p.id)
-  );
-  for (const p of cleanProjects) {
-    saveProject(userNumber, p);
-    saveProjectTasks(userNumber, p.id, p.tasks);
-    saveProjectNotes(userNumber, p.id, p.notes || []);
-    saveProjectMindMaps(userNumber, p.id, p.mindMaps || []);
-  }
-}
-
-function migrateLegacyBlobIfPresent(userNumber) {
-  // Previous approach stored a single JSON blob in STORAGE.legacyWorkspaceKey(userNumber)
-  const raw = localStorage.getItem(STORAGE.legacyWorkspaceKey(userNumber));
-  if (!raw) return;
-  const parsed = safeParseJson(raw);
-  if (!parsed || typeof parsed !== "object") {
-    localStorage.removeItem(STORAGE.legacyWorkspaceKey(userNumber));
-    return;
-  }
-  try {
-    importWorkspaceSnapshot(userNumber, { ...parsed, userNumber });
-  } finally {
-    localStorage.removeItem(STORAGE.legacyWorkspaceKey(userNumber));
+  if (mindMapEditorSection) {
+    mindMapEditorSection.classList.toggle("modalFront", Boolean(open && mapOpenedFromTask));
   }
 }
 
@@ -741,10 +291,6 @@ function setProjectTab(which) {
   }
 }
 
-function normalizeTag(t) {
-  return String(t || "").trim().toLowerCase();
-}
-
 function setNotesTagFilter(tag) {
   currentNotesTag = String(tag || "");
   if (notesTagFilter) notesTagFilter.value = currentNotesTag;
@@ -762,12 +308,6 @@ function setWorkspace(ws) {
 
 function getCurrentProject(ws) {
   return ws.projects.find((p) => p.id === currentProjectId) || ws.projects[0];
-}
-
-function countTasksByStatus(tasks) {
-  const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
-  for (const t of tasks) counts[t.status] = (counts[t.status] || 0) + 1;
-  return counts;
 }
 
 function renderProjectsPage(ws) {
@@ -821,13 +361,6 @@ function renderProjectsPage(ws) {
     card.appendChild(header);
     projectListEl.appendChild(card);
   }
-}
-
-function checklistProgress(task) {
-  const items = Array.isArray(task?.checklist) ? task.checklist : [];
-  const total = items.length;
-  const done = items.reduce((acc, x) => acc + (x?.done ? 1 : 0), 0);
-  return { done, total };
 }
 
 function taskCard(task) {
@@ -1369,40 +902,6 @@ function renderProjectPage(ws) {
   setProjectTab(currentProjectTab);
 }
 
-function parseTags(raw) {
-  const tags = String(raw || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0);
-  // unique, preserve order, case-insensitive uniqueness
-  const seen = new Set();
-  const out = [];
-  for (const t of tags) {
-    const key = t.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(t);
-  }
-  return out;
-}
-
-function listProjectTags(project) {
-  const notes = Array.isArray(project?.notes) ? project.notes : [];
-  const tagSet = new Map(); // normalized -> display
-  for (const n of notes) {
-    const tags = Array.isArray(n.tags) ? n.tags : [];
-    for (const t of tags) {
-      const norm = normalizeTag(t);
-      const display = String(t || "").trim();
-      if (!norm || !display) continue;
-      if (!tagSet.has(norm)) tagSet.set(norm, display);
-    }
-  }
-  return [...tagSet.entries()]
-    .map(([norm, display]) => ({ norm, display }))
-    .sort((a, b) => a.display.localeCompare(b.display));
-}
-
 function toggleTagInInput(tagDisplay) {
   const current = parseTags(noteTags?.value);
   const norm = normalizeTag(tagDisplay);
@@ -1861,30 +1360,6 @@ function renderNotes(ws) {
   }
 }
 
-function mindMapDescendantIds(rootId, nodes) {
-  const childrenByParent = new Map();
-  for (const n of nodes) {
-    if (!n.parentId) continue;
-    if (!childrenByParent.has(n.parentId)) childrenByParent.set(n.parentId, []);
-    childrenByParent.get(n.parentId).push(n.id);
-  }
-  const out = [];
-  const stack = [...(childrenByParent.get(rootId) || [])];
-  while (stack.length) {
-    const id = stack.pop();
-    out.push(id);
-    const ch = childrenByParent.get(id) || [];
-    for (const c of ch) stack.push(c);
-  }
-  return out;
-}
-
-/** Parent candidates: any node except self and own descendants (avoids cycles). */
-function mindMapValidParentIds(nodeId, nodes) {
-  const forbidden = new Set([nodeId, ...mindMapDescendantIds(nodeId, nodes)]);
-  return nodes.map((n) => n.id).filter((id) => !forbidden.has(id));
-}
-
 function fillMindMapParentSelect(selectEl, node) {
   if (!selectEl || !mindMapWorkingCopy || !node) return;
   const { nodes } = mindMapWorkingCopy;
@@ -2043,38 +1518,6 @@ function mindMapNextChildPosition(parent) {
     x: clampMindCoord(parent.x + col * gapX - 2 * gapX),
     y: clampMindCoord(parent.y + MIND_NODE_H + 24 + row * gapY),
   };
-}
-
-/** Size the canvas to fit all nodes; root centered horizontally, anchored toward the top. World coords unchanged. */
-function computeMindMapViewLayout(nodes) {
-  if (!nodes.length) {
-    return { innerW: 400, innerH: 320, tx: 0, ty: 0 };
-  }
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxR = -Infinity;
-  let maxB = -Infinity;
-  for (const n of nodes) {
-    minX = Math.min(minX, n.x);
-    minY = Math.min(minY, n.y);
-    maxR = Math.max(maxR, n.x + MIND_NODE_W);
-    maxB = Math.max(maxB, n.y + MIND_NODE_H);
-  }
-  const root = nodes.find((n) => n.parentId === null) || nodes[0];
-  const rcx = root.x + MIND_NODE_W / 2;
-  const rcy = root.y + MIND_NODE_H / 2;
-  const halfW = Math.max(rcx - minX, maxR - rcx, MIND_NODE_W / 2);
-  const margin = 48;
-  const topPad = margin;
-  const bottomPad = margin;
-  const innerW = Math.max(280, Math.ceil(2 * halfW + 2 * margin));
-  const tx = innerW / 2 - rcx;
-  let ty = topPad + MIND_NODE_H / 2 - rcy;
-  const topEdge = minY + ty;
-  if (topEdge < 0) ty -= topEdge;
-  const bottomEdge = maxB + ty;
-  const innerH = Math.max(220, Math.ceil(bottomEdge + bottomPad));
-  return { innerW, innerH, tx, ty };
 }
 
 /** Actualiza el borde de selección sin reemplazar el DOM (evita romper el `dblclick`). */
@@ -2605,214 +2048,79 @@ function goProject(projectId) {
   renderProjectPage(currentWorkspace);
 }
 
-tabTasksBtn.addEventListener("click", () => setProjectTab("tasks"));
-tabNotesBtn.addEventListener("click", () => setProjectTab("notes"));
-tabMindMapsBtn.addEventListener("click", () => setProjectTab("mindmaps"));
-
-notesTagFilter.addEventListener("change", () => setNotesTagFilter(notesTagFilter.value));
-
-newNoteBtn.addEventListener("click", () => openNoteEditor(null));
-closeNoteBtn.addEventListener("click", () => closeNoteEditor());
-noteCancelBtn.addEventListener("click", () => closeNoteEditor());
-
-modalNote.addEventListener("click", (e) => {
-  if (e.target === modalNote) closeNoteEditor();
+const notesHandlers = createNotesHandlers({
+  setProjectTab,
+  setNotesTagFilter,
+  notesTagFilter,
+  openNoteEditor,
+  closeNoteEditor,
+  getState: () => ({ currentWorkspace, currentUserNumber, editingNoteId, noteOpenedFromTask }),
+  noteTitle,
+  noteBody,
+  noteTags,
+  parseTags,
+  updateProjectWithNotes,
+  nowIso,
+  uuid,
+  getEditingTask,
+  renderLinkedNotes,
+  toast,
+  sanitizeLinkedNoteIds,
 });
 
-closeLinkedMapBtn.addEventListener("click", () => closeLinkedMapEditor());
-modalLinkedMap.addEventListener("click", (e) => {
-  if (e.target === modalLinkedMap) closeLinkedMapEditor();
+bindNotesUI({
+  tabTasksBtn,
+  tabNotesBtn,
+  tabMindMapsBtn,
+  notesTagFilter,
+  newNoteBtn,
+  closeNoteBtn,
+  noteCancelBtn,
+  modalNote,
+  noteForm,
+  deleteNoteBtn,
+  ...notesHandlers,
 });
 
-linkedMapSaveNameBtn.addEventListener("click", () => {
-  if (!linkedMapWorkingCopy || !currentWorkspace) return;
-  const project = getCurrentProject(currentWorkspace);
-  if (!project || !Array.isArray(project.mindMaps)) return;
-  const mapIndex = project.mindMaps.findIndex((m) => m.id === linkedMapWorkingCopy.id);
-  if (mapIndex === -1) return;
-  linkedMapWorkingCopy.name = String(linkedMapNameInput.value || "").trim();
-  project.mindMaps[mapIndex] = linkedMapWorkingCopy;
-  saveProject(currentWorkspace);
-  linkedMapModalTitle.textContent = linkedMapWorkingCopy.name || "Map";
+const taskHandlers = createTaskHandlers({
+  setModal,
+  closeTaskEditor,
+  getState: () => ({ currentWorkspace, editingTaskId }),
+  taskEditTitle,
+  taskEditStatus,
+  taskEditPriority,
+  STATUSES,
+  clampPriority,
+  updateProject,
+  nowIso,
+  getSelectedLinkedNoteIds,
+  getSelectedLinkedMapIds,
+  toast,
+  newChecklistText,
+  uuid,
+  getEditingTask,
+  renderChecklist,
+  newCommentText,
+  renderComments,
+  addCommentBtn,
+  deleteTask,
 });
 
-linkedMapDeleteMapBtn.addEventListener("click", () => {
-  if (!linkedMapWorkingCopy || !currentWorkspace) return;
-  const project = getCurrentProject(currentWorkspace);
-  if (!project || !Array.isArray(project.mindMaps)) return;
-  if (!confirm(`Delete map "${linkedMapWorkingCopy.name}"?`)) return;
-  project.mindMaps = project.mindMaps.filter((m) => m.id !== linkedMapWorkingCopy.id);
-  saveProject(currentWorkspace);
-  closeLinkedMapEditor();
-  renderMindMapsList();
-});
-
-noteForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!currentWorkspace || !currentUserNumber) return;
-  const title = String(noteTitle.value || "").trim();
-  if (!title) return;
-  const body = String(noteBody.value || "");
-  const tags = parseTags(noteTags.value);
-
-  updateProjectWithNotes((proj) => {
-    const existing = Array.isArray(proj.notes) ? proj.notes : [];
-    const now = nowIso();
-    if (editingNoteId) {
-      return {
-        ...proj,
-        updatedAt: now,
-        notes: existing.map((n) =>
-          n.id === editingNoteId ? { ...n, title, body, tags, updatedAt: now } : n
-        ),
-      };
-    }
-    const note = { id: uuid(), title, body, tags, createdAt: now, updatedAt: now };
-    return { ...proj, updatedAt: now, notes: [note, ...existing] };
-  });
-
-  if (noteOpenedFromTask) {
-    const refreshedTask = getEditingTask();
-    if (refreshedTask) renderLinkedNotes(refreshedTask);
-  }
-
-  toast(editingNoteId ? "Note saved." : "Note created.");
-  closeNoteEditor();
-});
-
-deleteNoteBtn.addEventListener("click", () => {
-  if (!editingNoteId) return;
-  const ok = confirm("Delete note?");
-  if (!ok) return;
-  const id = editingNoteId;
-  updateProjectWithNotes((proj) => ({
-    ...proj,
-    notes: (Array.isArray(proj.notes) ? proj.notes : []).filter((x) => x.id !== id),
-    tasks: (Array.isArray(proj.tasks) ? proj.tasks : []).map((t) => ({
-      ...t,
-      linked_notes: sanitizeLinkedNoteIds(t.linked_notes).filter((noteId) => noteId !== id),
-    })),
-  }));
-  if (noteOpenedFromTask) {
-    const refreshedTask = getEditingTask();
-    if (refreshedTask) renderLinkedNotes(refreshedTask);
-  }
-  toast("Note deleted.");
-  closeNoteEditor();
-});
-
-openBacklogBtn.addEventListener("click", () => setModal("backlog", true));
-openDoneBtn.addEventListener("click", () => setModal("done", true));
-closeBacklogBtn.addEventListener("click", () => setModal("backlog", false));
-closeDoneBtn.addEventListener("click", () => setModal("done", false));
-
-closeTaskBtn.addEventListener("click", () => closeTaskEditor());
-cancelTaskBtn.addEventListener("click", () => closeTaskEditor());
-
-modalTask.addEventListener("click", (e) => {
-  if (e.target === modalTask) closeTaskEditor();
-});
-
-taskEditForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!currentWorkspace || !editingTaskId) return;
-  const title = String(taskEditTitle.value || "").trim();
-  const status = STATUSES.includes(taskEditStatus.value) ? taskEditStatus.value : "backlog";
-  const priority = clampPriority(taskEditPriority?.value);
-  if (!title) return;
-
-  updateProject((proj) => ({
-    ...proj,
-    updatedAt: nowIso(),
-    tasks: proj.tasks.map((x) =>
-      x.id === editingTaskId
-        ? {
-            ...x,
-            title,
-            status,
-            priority,
-            linked_notes: getSelectedLinkedNoteIds(),
-            linked_maps: getSelectedLinkedMapIds(),
-            updatedAt: nowIso(),
-            checklist: Array.isArray(x.checklist) ? x.checklist : [],
-            comments: Array.isArray(x.comments) ? x.comments : [],
-          }
-        : x
-    ),
-  }));
-  toast("Saved.");
-  closeTaskEditor();
-});
-
-addChecklistBtn.addEventListener("click", () => {
-  if (!currentWorkspace || !editingTaskId) return;
-  const text = String(newChecklistText.value || "").trim();
-  if (!text) return;
-  const item = { id: uuid(), text, done: false, createdAt: nowIso(), updatedAt: nowIso() };
-
-  updateProject((proj) => ({
-    ...proj,
-    updatedAt: nowIso(),
-    tasks: proj.tasks.map((t) => {
-      if (t.id !== editingTaskId) return t;
-      const existing = Array.isArray(t.checklist) ? t.checklist : [];
-      return { ...t, updatedAt: nowIso(), checklist: [...existing, item] };
-    }),
-  }));
-
-  newChecklistText.value = "";
-  const refreshed = getEditingTask();
-  if (refreshed) renderChecklist(refreshed);
-  toast("Activity added.");
-});
-
-addCommentBtn.addEventListener("click", () => {
-  if (!currentWorkspace || !editingTaskId) return;
-  const text = String(newCommentText.value || "").trim();
-  if (!text) return;
-  const editingCommentId = newCommentText.dataset.editingCommentId || null;
-
-  updateProject((proj) => ({
-    ...proj,
-    updatedAt: nowIso(),
-    tasks: proj.tasks.map((t) => {
-      if (t.id !== editingTaskId) return t;
-      const existing = Array.isArray(t.comments) ? t.comments : [];
-
-      if (editingCommentId) {
-        return {
-          ...t,
-          updatedAt: nowIso(),
-          comments: existing.map((c) =>
-            c.id === editingCommentId ? { ...c, text, updatedAt: nowIso() } : c
-          ),
-        };
-      }
-
-      const comment = { id: uuid(), text, createdAt: nowIso(), updatedAt: nowIso() };
-      return { ...t, updatedAt: nowIso(), comments: [...existing, comment] };
-    }),
-  }));
-
-  delete newCommentText.dataset.editingCommentId;
-  addCommentBtn.textContent = "Add";
-  newCommentText.value = "";
-  const refreshed = getEditingTask();
-  if (refreshed) renderComments(refreshed);
-  toast(editingCommentId ? "Comment saved." : "Comment added.");
-});
-
-deleteTaskBtn.addEventListener("click", () => {
-  if (!editingTaskId) return;
-  deleteTask(editingTaskId);
-  closeTaskEditor();
-});
-
-modalBacklog.addEventListener("click", (e) => {
-  if (e.target === modalBacklog) setModal("backlog", false);
-});
-modalDone.addEventListener("click", (e) => {
-  if (e.target === modalDone) setModal("done", false);
+bindTaskUI({
+  openBacklogBtn,
+  openDoneBtn,
+  closeBacklogBtn,
+  closeDoneBtn,
+  modalBacklog,
+  modalDone,
+  closeTaskBtn,
+  cancelTaskBtn,
+  modalTask,
+  taskEditForm,
+  addChecklistBtn,
+  addCommentBtn,
+  deleteTaskBtn,
+  ...taskHandlers,
 });
 
 window.addEventListener("keydown", (e) => {
@@ -2827,186 +2135,78 @@ window.addEventListener("keydown", (e) => {
   closeNoteEditor();
 });
 
-newMindMapBtn.addEventListener("click", () => {
-  if (!currentWorkspace || !currentUserNumber) return;
-  const name = prompt("Map name:");
-  const trimmed = String(name || "").trim();
-  if (!trimmed) return;
-  const map = defaultMindMap(trimmed);
-  pendingMindMapSelectId = map.id;
-  updateProjectWithMindMaps((proj) => ({
-    ...proj,
-    updatedAt: nowIso(),
-    mindMaps: [map, ...(Array.isArray(proj.mindMaps) ? proj.mindMaps : [])],
-  }));
-  toast("Map created.");
-});
-
-if (mindMapSelect) {
-  mindMapSelect.addEventListener("change", () => {
-    const id = mindMapSelect.value;
-    if (id) loadMindMapForEditing(id);
-    else unloadMindMapEditor();
-  });
-}
-
-mindMapSaveNameBtn.addEventListener("click", () => {
-  if (!mindMapWorkingCopy || !mindMapNameInput) return;
-  mindMapWorkingCopy.name = String(mindMapNameInput.value || "").trim().slice(0, 140) || "Map";
-  persistMindMapWorkingCopy();
-  toast("Name saved.");
-});
-
-mindMapDeleteMapBtn.addEventListener("click", () => {
-  const id = editingMindMapId;
-  if (!id) return;
-  const ok = confirm("Delete this mind map?");
-  if (!ok) return;
-  unloadMindMapEditor();
-  updateProjectWithMindMaps((proj) => ({
-    ...proj,
-    mindMaps: (Array.isArray(proj.mindMaps) ? proj.mindMaps : []).filter((m) => m.id !== id),
-    tasks: (Array.isArray(proj.tasks) ? proj.tasks : []).map((t) => ({
-      ...t,
-      linked_maps: sanitizeLinkedMapIds(t.linked_maps).filter((mapId) => mapId !== id),
-    })),
-  }));
-  toast("Map deleted.");
-});
-
-closeMindMapBtn.addEventListener("click", () => {
-  closeMapEditor();
-});
-
-mindMapInner.addEventListener("click", (e) => {
-  if (!mindMapWorkingCopy) return;
-  if (e.target.closest?.(".mindNode")) return;
-  window.clearTimeout(mindMapInnerClearSelectionTimer);
-  mindMapInnerClearSelectionTimer = window.setTimeout(() => {
-    mindMapInnerClearSelectionTimer = null;
-    mindMapSelectedNodeId = null;
-    renderMindMapCanvas();
-  }, 280);
-});
-
-mindMapInner.addEventListener("dblclick", (e) => {
-  if (!mindMapWorkingCopy) return;
-  if (e.target.closest?.(".mindNode")) return;
-  e.preventDefault();
-  window.clearTimeout(mindMapInnerClearSelectionTimer);
-  mindMapInnerClearSelectionTimer = null;
-  const parent =
-    (mindMapSelectedNodeId && mindMapWorkingCopy.nodes.some((x) => x.id === mindMapSelectedNodeId)
-      ? mindMapWorkingCopy.nodes.find((x) => x.id === mindMapSelectedNodeId)
-      : null) || mindMapGetRootNode();
-  if (!parent) return;
-  const nid = mindMapAddChildUnderParent(parent.id);
-  if (!nid) return;
-  openMindMapNodeQuickEdit(nid);
-  toast("New node created (edit the text and save it).");
-});
-
-if (modalMindMapNode) {
-  modalMindMapNode.addEventListener("click", (e) => {
-    if (e.target === modalMindMapNode) closeMindMapNodeQuickEdit();
-  });
-}
-
-if (mindMapQuickForm) {
-  mindMapQuickForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (!mindMapQuickEditNodeId) return;
-    const isLinkedMap = linkedMapWorkingCopy && linkedMapWorkingCopy.nodes.some((n) => n.id === mindMapQuickEditNodeId);
-    const workingCopy = isLinkedMap ? linkedMapWorkingCopy : mindMapWorkingCopy;
-    if (!workingCopy) return;
-    const n = workingCopy.nodes.find((x) => x.id === mindMapQuickEditNodeId);
-    if (!n) {
-      closeMindMapNodeQuickEdit();
-      return;
-    }
-    n.label = String(mindMapQuickLabelInput?.value || "").trim().slice(0, 200) || "Node";
-    n.description = String(mindMapQuickDescInput?.value || "").trim().slice(0, 5000);
-    if (n.parentId) {
-      const valid = mindMapValidParentIds(n.id, workingCopy.nodes);
-      const newP = String(mindMapQuickParentSelect?.value || "");
-      if (newP && valid.includes(newP)) n.parentId = newP;
-      else if (newP && !valid.includes(newP)) toast("Invalid parent.");
-      n.edgeLabel = String(mindMapQuickEdgeInput?.value || "").trim().slice(0, 120);
-    }
-    if (isLinkedMap) {
-      renderLinkedMapCanvas();
-      persistLinkedMapWorkingCopy();
-      renderMindMapsList();
-    } else {
+const mindMapHandlers = createMindMapHandlers({
+  getState: () => ({ currentWorkspace, currentUserNumber, linkedMapWorkingCopy, editingMindMapId, mindMapWorkingCopy, mindMapSelectedNodeId, mindMapQuickEditNodeId }),
+  getCurrentProject,
+  linkedMapNameInput,
+  saveProject,
+  linkedMapModalTitle,
+  closeLinkedMapEditor,
+  renderMindMapsList,
+  defaultMindMap,
+  nowIso,
+  updateProjectWithMindMaps,
+  setPendingMindMapSelectId: (id) => {
+    pendingMindMapSelectId = id;
+  },
+  mindMapSelect,
+  loadMindMapForEditing,
+  unloadMindMapEditor,
+  mindMapNameInput,
+  persistMindMapWorkingCopy,
+  toast,
+  sanitizeLinkedMapIds,
+  closeMapEditor,
+  clearMindMapSelection: (e) => {
+    if (!mindMapWorkingCopy || e.target.closest?.(".mindNode")) return;
+    window.clearTimeout(mindMapInnerClearSelectionTimer);
+    mindMapInnerClearSelectionTimer = window.setTimeout(() => {
+      mindMapInnerClearSelectionTimer = null;
+      mindMapSelectedNodeId = null;
       renderMindMapCanvas();
-      persistMindMapWorkingCopy();
-    }
-    closeMindMapNodeQuickEdit();
-    toast("Node saved.");
-  });
-}
-
-closeMindMapQuickBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
-mindMapQuickCancelBtn?.addEventListener("click", () => closeMindMapNodeQuickEdit());
-
-mindMapQuickAddChildBtn?.addEventListener("click", () => {
-  if (!mindMapQuickEditNodeId) return;
-  const isLinkedMap = linkedMapWorkingCopy && linkedMapWorkingCopy.nodes.some((n) => n.id === mindMapQuickEditNodeId);
-  const workingCopy = isLinkedMap ? linkedMapWorkingCopy : mindMapWorkingCopy;
-  if (!workingCopy) return;
-  const parent = workingCopy.nodes.find((x) => x.id === mindMapQuickEditNodeId);
-  if (!parent) return;
-  const pos = mindMapNextChildPosition(parent);
-  const nid = uuid();
-  workingCopy.nodes.push({
-    id: nid,
-    label: "New",
-    x: pos.x,
-    y: pos.y,
-    parentId: parent.id,
-    edgeLabel: "",
-    description: "",
-  });
-  if (isLinkedMap) {
-    renderLinkedMapCanvas();
-    persistLinkedMapWorkingCopy();
-    renderMindMapsList();
-  } else {
-    renderMindMapCanvas();
-    persistMindMapWorkingCopy();
-  }
-  openMindMapNodeQuickEdit(nid);
-  toast("Child added.");
+    }, 280);
+  },
+  mindMapGetRootNode,
+  mindMapAddChildUnderParent,
+  openMindMapNodeQuickEdit,
+  closeMindMapNodeQuickEdit,
+  mindMapQuickLabelInput,
+  mindMapQuickDescInput,
+  mindMapValidParentIds,
+  mindMapQuickParentSelect,
+  mindMapQuickEdgeInput,
+  renderLinkedMapCanvas,
+  persistLinkedMapWorkingCopy,
+  renderMindMapCanvas,
+  mindMapNextChildPosition,
+  uuid,
+  mindMapDescendantIds,
+  setLinkedMapSelectedNodeId: (id) => {
+    linkedMapSelectedNodeId = id;
+  },
+  setMindMapSelectedNodeId: (id) => {
+    mindMapSelectedNodeId = id;
+  },
 });
 
-mindMapQuickDeleteNodeBtn?.addEventListener("click", () => {
-  if (!mindMapQuickEditNodeId) return;
-  const isLinkedMap = linkedMapWorkingCopy && linkedMapWorkingCopy.nodes.some((n) => n.id === mindMapQuickEditNodeId);
-  const workingCopy = isLinkedMap ? linkedMapWorkingCopy : mindMapWorkingCopy;
-  if (!workingCopy) return;
-  if (workingCopy.nodes.length <= 1) {
-    toast("You cannot delete the only node.");
-    return;
-  }
-  const ok = confirm("Delete this node and all branches below?");
-  if (!ok) return;
-  const id = mindMapQuickEditNodeId;
-  const toRemove = new Set([id, ...mindMapDescendantIds(id, workingCopy.nodes)]);
-  workingCopy.nodes = workingCopy.nodes.filter((n) => !toRemove.has(n.id));
-  if (isLinkedMap) {
-    linkedMapSelectedNodeId =
-      linkedMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || linkedMapWorkingCopy.nodes[0]?.id || null;
-    renderLinkedMapCanvas();
-    persistLinkedMapWorkingCopy();
-    renderMindMapsList();
-  } else {
-    mindMapSelectedNodeId =
-      mindMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || mindMapWorkingCopy.nodes[0]?.id || null;
-    renderMindMapCanvas();
-    persistMindMapWorkingCopy();
-  }
-  closeMindMapNodeQuickEdit();
-  toast("Node deleted.");
+bindMindMapsUI({
+  closeLinkedMapBtn,
+  modalLinkedMap,
+  linkedMapSaveNameBtn,
+  linkedMapDeleteMapBtn,
+  newMindMapBtn,
+  mindMapSelect,
+  mindMapSaveNameBtn,
+  mindMapDeleteMapBtn,
+  closeMindMapBtn,
+  mindMapInner,
+  modalMindMapNode,
+  mindMapQuickForm,
+  closeMindMapQuickBtn,
+  mindMapQuickCancelBtn,
+  mindMapQuickAddChildBtn,
+  mindMapQuickDeleteNodeBtn,
+  ...mindMapHandlers,
 });
 
 exportBtn.addEventListener("click", () => {
