@@ -376,6 +376,45 @@
             </div>
           </section>
 
+          <div id="modalLinkedMap" class="modal hidden" role="dialog" aria-modal="true" aria-label="Linked map">
+            <div class="modalPanel modalLarge">
+              <div class="modalHeader">
+                <h3 class="panelTitle" id="linkedMapModalTitle">Map</h3>
+                <button id="closeLinkedMapBtn" class="btnSecondary" type="button">Close</button>
+              </div>
+              <div class="modalContent">
+                <div class="row wrap">
+                  <div class="grow">
+                    <label class="label" for="linkedMapNameInput">Map name</label>
+                    <input
+                      id="linkedMapNameInput"
+                      class="input"
+                      type="text"
+                      maxlength="140"
+                      placeholder="Name…"
+                    />
+                  </div>
+                  <button id="linkedMapSaveNameBtn" class="btnSecondary" type="button">Save name</button>
+                  <button id="linkedMapDeleteMapBtn" class="btnSecondary" type="button">Delete map</button>
+                </div>
+                <div class="panel mindMapTools">
+                  <p class="finePrint mindMapHelp">
+                    Click a node to select it. Double-click a node to open the editor. Double-click the map background
+                    to create a child node (from the selected node, or from the root if nothing is selected). Drag a node to move it.
+                  </p>
+                </div>
+                <div id="linkedMapViewport" class="mindMapViewport">
+                  <div id="linkedMapInner" class="mindMapInner">
+                    <div id="linkedMapWorld" class="mindMapWorld">
+                      <svg id="linkedMapSvg" class="mindMapSvg" aria-hidden="true"></svg>
+                      <div id="linkedMapNodesLayer" class="mindMapNodesLayer"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div id="modalNote" class="modal hidden" role="dialog" aria-modal="true" aria-label="Edit note">
             <div class="modalPanel">
               <div class="modalHeader">

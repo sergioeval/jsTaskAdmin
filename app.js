@@ -87,6 +87,18 @@ const mindMapWorld = document.getElementById("mindMapWorld");
 const mindMapSvg = document.getElementById("mindMapSvg");
 const mindMapNodesLayer = document.getElementById("mindMapNodesLayer");
 
+const modalLinkedMap = document.getElementById("modalLinkedMap");
+const linkedMapModalTitle = document.getElementById("linkedMapModalTitle");
+const closeLinkedMapBtn = document.getElementById("closeLinkedMapBtn");
+const linkedMapNameInput = document.getElementById("linkedMapNameInput");
+const linkedMapSaveNameBtn = document.getElementById("linkedMapSaveNameBtn");
+const linkedMapDeleteMapBtn = document.getElementById("linkedMapDeleteMapBtn");
+const linkedMapViewport = document.getElementById("linkedMapViewport");
+const linkedMapInner = document.getElementById("linkedMapInner");
+const linkedMapWorld = document.getElementById("linkedMapWorld");
+const linkedMapSvg = document.getElementById("linkedMapSvg");
+const linkedMapNodesLayer = document.getElementById("linkedMapNodesLayer");
+
 const modalMindMapNode = document.getElementById("modalMindMapNode");
 const mindMapQuickForm = document.getElementById("mindMapQuickForm");
 const mindMapQuickLabelInput = document.getElementById("mindMapQuickLabel");
@@ -1467,16 +1479,105 @@ function openLinkedNoteEditor(noteId) {
   openNoteEditor(noteId, { fromTask: true });
 }
 
+let linkedMapWorkingCopy = null;
+let linkedMapSelectedNodeId = null;
+
 function openLinkedMapEditor(mapId) {
   if (!mapId) return;
-  mapOpenedFromTask = true;
   const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
   const maps = Array.isArray(project?.mindMaps) ? project.mindMaps : [];
   const found = maps.find((m) => m.id === mapId);
   if (found) {
-    setProjectTab("mindmaps");
-    selectMindMap(mapId);
-    setMindMapEditorVisible(true);
+    linkedMapWorkingCopy = sanitizeMindMap(JSON.parse(JSON.stringify(found)));
+    linkedMapSelectedNodeId =
+      linkedMapWorkingCopy.nodes.find((n) => n.parentId === null)?.id || linkedMapWorkingCopy.nodes[0]?.id || null;
+    linkedMapNameInput.value = linkedMapWorkingCopy.name || "";
+    linkedMapModalTitle.textContent = linkedMapWorkingCopy.name || "Map";
+    renderLinkedMapCanvas();
+    setLinkedMapModalVisible(true);
+    linkedMapNameInput.focus();
+  }
+}
+
+function closeLinkedMapEditor() {
+  setLinkedMapModalVisible(false);
+  linkedMapWorkingCopy = null;
+  linkedMapSelectedNodeId = null;
+  if (linkedMapSvg) linkedMapSvg.innerHTML = "";
+  if (linkedMapNodesLayer) linkedMapNodesLayer.innerHTML = "";
+  if (linkedMapNameInput) linkedMapNameInput.value = "";
+}
+
+function setLinkedMapModalVisible(show) {
+  if (modalLinkedMap) modalLinkedMap.classList.toggle("hidden", !show);
+}
+
+function renderLinkedMapCanvas() {
+  if (!linkedMapWorkingCopy || !linkedMapSvg || !linkedMapNodesLayer) return;
+  const ns = "http://www.w3.org/2000/svg";
+  const { nodes } = linkedMapWorkingCopy;
+  const { innerW, innerH, tx, ty } = computeMindMapViewLayout(nodes);
+  if (linkedMapInner) {
+    linkedMapInner.style.width = `${innerW}px`;
+    linkedMapInner.style.height = `${innerH}px`;
+  }
+  if (linkedMapWorld) {
+    linkedMapWorld.style.transform = `translate(${tx}px, ${ty}px)`;
+  }
+
+  linkedMapSvg.innerHTML = "";
+  linkedMapSvg.setAttribute("overflow", "visible");
+
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const p = nodes.find((x) => x.id === n.parentId);
+    if (!p) continue;
+    const x1 = p.x + MIND_NODE_W / 2;
+    const y1 = p.y + MIND_NODE_H;
+    const x2 = n.x + MIND_NODE_W / 2;
+    const y2 = n.y;
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", String(x1));
+    line.setAttribute("y1", String(y1));
+    line.setAttribute("x2", String(x2));
+    line.setAttribute("y2", String(y2));
+    line.setAttribute("stroke", "rgba(255,255,255,0.42)");
+    line.setAttribute("stroke-width", "2");
+    linkedMapSvg.appendChild(line);
+
+    const edgeText = String(n.edgeLabel || "").trim();
+    if (edgeText) {
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      const t = document.createElementNS(ns, "text");
+      t.setAttribute("x", String(mx));
+      t.setAttribute("y", String(my - 3));
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("dominant-baseline", "middle");
+      t.setAttribute("fill", "#d7def6");
+      t.setAttribute("font-size", "11");
+      t.setAttribute("font-weight", "700");
+      t.setAttribute("font-family", "ui-sans-serif, system-ui, sans-serif");
+      t.setAttribute("stroke", "#0b1020");
+      t.setAttribute("stroke-width", "5");
+      t.setAttribute("paint-order", "stroke fill");
+      const display = edgeText.length > 48 ? `${edgeText.slice(0, 46)}…` : edgeText;
+      t.textContent = display;
+      linkedMapSvg.appendChild(t);
+    }
+  }
+
+  linkedMapNodesLayer.innerHTML = "";
+  for (const n of nodes) {
+    const div = document.createElement("div");
+    div.className = `mindNode${linkedMapSelectedNodeId === n.id ? " isSelected" : ""}`;
+    div.style.left = `${n.x}px`;
+    div.style.top = `${n.y}px`;
+    div.textContent = n.label;
+    div.dataset.nodeId = n.id;
+    const desc = String(n.description || "").trim();
+    if (desc) div.title = desc.length > 240 ? `${desc.slice(0, 238)}…` : desc;
+    linkedMapNodesLayer.appendChild(div);
   }
 }
 
@@ -2353,6 +2454,34 @@ noteCancelBtn.addEventListener("click", () => closeNoteEditor());
 
 modalNote.addEventListener("click", (e) => {
   if (e.target === modalNote) closeNoteEditor();
+});
+
+closeLinkedMapBtn.addEventListener("click", () => closeLinkedMapEditor());
+modalLinkedMap.addEventListener("click", (e) => {
+  if (e.target === modalLinkedMap) closeLinkedMapEditor();
+});
+
+linkedMapSaveNameBtn.addEventListener("click", () => {
+  if (!linkedMapWorkingCopy || !currentWorkspace) return;
+  const project = getCurrentProject(currentWorkspace);
+  if (!project || !Array.isArray(project.mindMaps)) return;
+  const mapIndex = project.mindMaps.findIndex((m) => m.id === linkedMapWorkingCopy.id);
+  if (mapIndex === -1) return;
+  linkedMapWorkingCopy.name = String(linkedMapNameInput.value || "").trim();
+  project.mindMaps[mapIndex] = linkedMapWorkingCopy;
+  saveProject(currentWorkspace);
+  linkedMapModalTitle.textContent = linkedMapWorkingCopy.name || "Map";
+});
+
+linkedMapDeleteMapBtn.addEventListener("click", () => {
+  if (!linkedMapWorkingCopy || !currentWorkspace) return;
+  const project = getCurrentProject(currentWorkspace);
+  if (!project || !Array.isArray(project.mindMaps)) return;
+  if (!confirm(`Delete map "${linkedMapWorkingCopy.name}"?`)) return;
+  project.mindMaps = project.mindMaps.filter((m) => m.id !== linkedMapWorkingCopy.id);
+  saveProject(currentWorkspace);
+  closeLinkedMapEditor();
+  renderMindMapsList();
 });
 
 noteForm.addEventListener("submit", (e) => {
