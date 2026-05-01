@@ -35,6 +35,10 @@ const taskLinkedNotes = document.getElementById("taskLinkedNotes");
 const taskLinkedNotesList = document.getElementById("taskLinkedNotesList");
 const taskLinkedNotesDropdown = document.getElementById("taskLinkedNotesDropdown");
 const taskLinkedNotesPills = document.getElementById("taskLinkedNotesPills");
+const taskLinkedMaps = document.getElementById("taskLinkedMaps");
+const taskLinkedMapsList = document.getElementById("taskLinkedMapsList");
+const taskLinkedMapsDropdown = document.getElementById("taskLinkedMapsDropdown");
+const taskLinkedMapsPills = document.getElementById("taskLinkedMapsPills");
 const deleteTaskBtn = document.getElementById("deleteTaskBtn");
 const checklistList = document.getElementById("checklistList");
 const newChecklistText = document.getElementById("newChecklistText");
@@ -230,6 +234,28 @@ function sanitizeLinkedNoteIds(raw, notes = null) {
   return ids;
 }
 
+function sanitizeLinkedMapIds(raw, maps = null) {
+  const validMapIds = Array.isArray(maps)
+    ? new Set(
+        maps
+          .filter((m) => m && typeof m === "object")
+          .map((m) => String(m.id || "").trim())
+          .filter((id) => id.length > 0)
+      )
+    : null;
+  const input = Array.isArray(raw) ? raw : [];
+  const seen = new Set();
+  const ids = [];
+  for (const item of input) {
+    const id = String(item || "").trim();
+    if (!id || seen.has(id)) continue;
+    if (validMapIds && !validMapIds.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 function getUserSchemaVersion(userNumber) {
   const v = localStorage.getItem(STORAGE.schemaKey(userNumber));
   return v ? Number(v) : null;
@@ -285,6 +311,7 @@ function loadProjectTasks(userNumber, projectId) {
       status: STATUSES.includes(t.status) ? t.status : "backlog",
       priority: clampPriority(t.priority),
       linked_notes: sanitizeLinkedNoteIds(t.linked_notes),
+      linked_maps: sanitizeLinkedMapIds(t.linked_maps),
       checklist: Array.isArray(t.checklist)
         ? t.checklist
             .filter((c) => c && typeof c === "object")
@@ -527,6 +554,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
           status: STATUSES.includes(t.status) ? t.status : "backlog",
           priority: clampPriority(t.priority),
           linked_notes: sanitizeLinkedNoteIds(t.linked_notes, notes),
+          linked_maps: sanitizeLinkedMapIds(t.linked_maps, maps),
           checklist: Array.isArray(t.checklist)
             ? t.checklist
                 .filter((c) => c && typeof c === "object")
@@ -627,12 +655,21 @@ let mindMapDrag = null;
 let mindMapDragCandidate = null;
 let mindMapDragListenersAttached = false;
 let linkedNotesSelection = new Set();
+let linkedMapsSelection = new Set();
 
 function toggleLinkedNoteSelection(noteId) {
   if (linkedNotesSelection.has(noteId)) {
     linkedNotesSelection.delete(noteId);
   } else {
     linkedNotesSelection.add(noteId);
+  }
+}
+
+function toggleLinkedMapSelection(mapId) {
+  if (linkedMapsSelection.has(mapId)) {
+    linkedMapsSelection.delete(mapId);
+  } else {
+    linkedMapsSelection.add(mapId);
   }
 }
 /** After creating a map, select it once `renderMindMaps` rebuilds the dropdown. */
@@ -814,6 +851,18 @@ function taskCard(task) {
         })()
       : null;
 
+  const linkedMapIds = sanitizeLinkedMapIds(task.linked_maps);
+  const linkedMapsBadge =
+    linkedMapIds.length > 0
+      ? (() => {
+          const b = document.createElement("span");
+          b.className = "linkedMapsBadge";
+          b.textContent = `🗺️ ${linkedMapIds.length}`;
+          b.title = `${linkedMapIds.length} linked map${linkedMapIds.length === 1 ? "" : "s"}`;
+          return b;
+        })()
+      : null;
+
   const checklistBadge =
     total > 0
       ? (() => {
@@ -834,6 +883,7 @@ function taskCard(task) {
   actions.appendChild(badge);
   if (checklistBadge) actions.appendChild(checklistBadge);
   if (linkedNotesBadge) actions.appendChild(linkedNotesBadge);
+  if (linkedMapsBadge) actions.appendChild(linkedMapsBadge);
   actions.appendChild(editBtn);
 
   meta.appendChild(small);
@@ -861,6 +911,10 @@ function getEditingTask() {
 
 function getSelectedLinkedNoteIds() {
   return sanitizeLinkedNoteIds([...linkedNotesSelection]);
+}
+
+function getSelectedLinkedMapIds() {
+  return sanitizeLinkedMapIds([...linkedMapsSelection]);
 }
 
 function renderLinkedNotes(task) {
@@ -930,6 +984,75 @@ function updateDropdownTrigger() {
 function refreshTaskLinkedNotesField() {
   const task = getEditingTask();
   if (task) renderLinkedNotes(task);
+}
+
+function renderLinkedMaps(task) {
+  if (!taskLinkedMapsDropdown || !taskLinkedMapsList || !taskLinkedMapsPills) return;
+  const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
+  const maps = Array.isArray(project?.mindMaps) ? project?.mindMaps : [];
+  const selected = new Set(sanitizeLinkedMapIds(task?.linked_maps, maps));
+
+  linkedMapsSelection = new Set(selected);
+
+  taskLinkedMapsList.innerHTML = "";
+  taskLinkedMapsPills.innerHTML = "";
+  if (maps.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "taskSmall";
+    empty.textContent = "No maps available in this project yet.";
+    taskLinkedMapsList.appendChild(empty);
+    updateMapsDropdownTrigger();
+    return;
+  }
+
+  for (const m of maps) {
+    const item = document.createElement("label");
+    item.className = "dropdownItem";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = linkedMapsSelection.has(m.id);
+    cb.addEventListener("change", () => {
+      toggleLinkedMapSelection(m.id);
+      const refreshed = getEditingTask();
+      if (refreshed) {
+        refreshTaskLinkedMapsField();
+      }
+    });
+
+    const span = document.createElement("span");
+    span.textContent = m.name || "Untitled";
+
+    item.appendChild(cb);
+    item.appendChild(span);
+    taskLinkedMapsList.appendChild(item);
+  }
+
+  updateMapsDropdownTrigger();
+
+  const linked = maps.filter((m) => selected.has(m.id));
+  for (const m of linked) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "linkedMapPill";
+    item.textContent = m.name || "Untitled";
+    item.title = "Open map";
+    item.addEventListener("click", () => openLinkedMapEditor(m.id));
+    taskLinkedMapsPills.appendChild(item);
+  }
+}
+
+function updateMapsDropdownTrigger() {
+  if (!taskLinkedMapsDropdown) return;
+  const trigger = taskLinkedMapsDropdown.querySelector(".dropdown-trigger");
+  if (!trigger) return;
+  const count = linkedMapsSelection.size;
+  trigger.textContent = count > 0 ? `${count} map${count === 1 ? "" : "s"} selected` : "Select maps...";
+}
+
+function refreshTaskLinkedMapsField() {
+  const task = getEditingTask();
+  if (task) renderLinkedMaps(task);
 }
 
 function renderComments(task) {
@@ -1132,6 +1255,7 @@ function openTaskEditor(taskId) {
   taskEditStatus.value = t.status;
   if (taskEditPriority) taskEditPriority.value = String(clampPriority(t.priority));
   renderLinkedNotes(t);
+  renderLinkedMaps(t);
   newChecklistText.value = "";
   renderChecklist(t);
   newCommentText.value = "";
@@ -1149,6 +1273,10 @@ function closeTaskEditor() {
   if (taskLinkedNotesDropdown) taskLinkedNotesDropdown.querySelector(".dropdown-trigger").textContent = "Select notes...";
   if (taskLinkedNotesList) taskLinkedNotesList.innerHTML = "";
   if (taskLinkedNotesPills) taskLinkedNotesPills.innerHTML = "";
+  linkedMapsSelection = new Set();
+  if (taskLinkedMapsDropdown) taskLinkedMapsDropdown.querySelector(".dropdown-trigger").textContent = "Select maps...";
+  if (taskLinkedMapsList) taskLinkedMapsList.innerHTML = "";
+  if (taskLinkedMapsPills) taskLinkedMapsPills.innerHTML = "";
   newChecklistText.value = "";
   checklistList.innerHTML = "";
   newCommentText.value = "";
@@ -1336,6 +1464,17 @@ function openNoteEditor(noteId, options = {}) {
 function openLinkedNoteEditor(noteId) {
   noteOpenedFromTask = true;
   openNoteEditor(noteId, { fromTask: true });
+}
+
+function openLinkedMapEditor(mapId) {
+  if (!mapId) return;
+  const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
+  const maps = Array.isArray(project?.mindMaps) ? project.mindMaps : [];
+  const found = maps.find((m) => m.id === mapId);
+  if (found) {
+    setProjectTab("mindmaps");
+    selectMindMap(mapId);
+  }
 }
 
 function closeNoteEditor() {
@@ -2095,6 +2234,7 @@ taskForm.addEventListener("submit", (e) => {
       status,
       priority,
       linked_notes: [],
+      linked_maps: [],
       checklist: [],
       comments: [],
       createdAt: nowIso(),
@@ -2276,6 +2416,7 @@ taskEditForm.addEventListener("submit", (e) => {
             status,
             priority,
             linked_notes: getSelectedLinkedNoteIds(),
+            linked_maps: getSelectedLinkedMapIds(),
             updatedAt: nowIso(),
             checklist: Array.isArray(x.checklist) ? x.checklist : [],
             comments: Array.isArray(x.comments) ? x.comments : [],
@@ -2409,6 +2550,10 @@ mindMapDeleteMapBtn.addEventListener("click", () => {
   updateProjectWithMindMaps((proj) => ({
     ...proj,
     mindMaps: (Array.isArray(proj.mindMaps) ? proj.mindMaps : []).filter((m) => m.id !== id),
+    tasks: (Array.isArray(proj.tasks) ? proj.tasks : []).map((t) => ({
+      ...t,
+      linked_maps: sanitizeLinkedMapIds(t.linked_maps).filter((mapId) => mapId !== id),
+    })),
   }));
   toast("Map deleted.");
 });
