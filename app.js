@@ -147,6 +147,7 @@ function setTaskModal(open) {
 
 function setNoteModal(open) {
   modalNote.classList.toggle("hidden", !open);
+  modalNote.classList.toggle("modalFront", Boolean(open && noteOpenedFromTask));
 }
 
 // localStorage stores strings only. Best practice here is to normalize the data:
@@ -614,6 +615,7 @@ let currentProjectId = null;
 let currentUserNumber = null;
 let currentProjectTab = "tasks";
 let editingNoteId = null;
+let noteOpenedFromTask = false;
 let currentNotesTag = "";
 
 let editingMindMapId = null;
@@ -892,7 +894,7 @@ function renderLinkedNotes(task) {
     item.className = "linkedNotePill";
     item.textContent = n.title || "Untitled";
     item.title = "Open note";
-    item.addEventListener("click", () => openNoteEditor(n.id));
+    item.addEventListener("click", () => openLinkedNoteEditor(n.id));
     taskLinkedNotesList.appendChild(item);
   }
 }
@@ -1265,8 +1267,9 @@ function resetNoteForm() {
   deleteNoteBtn.disabled = true;
 }
 
-function openNoteEditor(noteId) {
+function openNoteEditor(noteId, options = {}) {
   if (!currentWorkspace) return;
+  noteOpenedFromTask = Boolean(options.fromTask);
   const p = getCurrentProject(currentWorkspace);
   const notes = Array.isArray(p.notes) ? p.notes : [];
   const n = noteId ? notes.find((x) => x.id === noteId) : null;
@@ -1277,10 +1280,12 @@ function openNoteEditor(noteId) {
     noteBody.value = n.body || "";
     noteTags.value = Array.isArray(n.tags) ? n.tags.join(", ") : "";
     noteSaveBtn.textContent = "Save";
-    noteModalTitle.textContent = "Edit note";
+    noteModalTitle.textContent = noteOpenedFromTask ? "Edit linked note" : "Edit note";
     deleteNoteBtn.disabled = false;
   } else {
     resetNoteForm();
+    noteOpenedFromTask = Boolean(options.fromTask);
+    noteModalTitle.textContent = noteOpenedFromTask ? "New linked note" : "New note";
   }
 
   if (noteTags) {
@@ -1288,14 +1293,20 @@ function openNoteEditor(noteId) {
   }
   renderNoteTagsPicker(p);
 
-  setProjectTab("notes");
+  if (!noteOpenedFromTask) setProjectTab("notes");
   setNoteModal(true);
   noteTitle.focus();
+}
+
+function openLinkedNoteEditor(noteId) {
+  noteOpenedFromTask = true;
+  openNoteEditor(noteId, { fromTask: true });
 }
 
 function closeNoteEditor() {
   resetNoteForm();
   setNoteModal(false);
+  noteOpenedFromTask = false;
 }
 
 function renderNotes(ws) {
@@ -2154,6 +2165,11 @@ noteForm.addEventListener("submit", (e) => {
     return { ...proj, updatedAt: now, notes: [note, ...existing] };
   });
 
+  if (noteOpenedFromTask) {
+    const refreshedTask = getEditingTask();
+    if (refreshedTask) renderLinkedNotes(refreshedTask);
+  }
+
   toast(editingNoteId ? "Note saved." : "Note created.");
   closeNoteEditor();
 });
@@ -2171,6 +2187,10 @@ deleteNoteBtn.addEventListener("click", () => {
       linked_notes: sanitizeLinkedNoteIds(t.linked_notes).filter((noteId) => noteId !== id),
     })),
   }));
+  if (noteOpenedFromTask) {
+    const refreshedTask = getEditingTask();
+    if (refreshedTask) renderLinkedNotes(refreshedTask);
+  }
   toast("Note deleted.");
   closeNoteEditor();
 });

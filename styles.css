@@ -821,6 +821,15 @@ body.projectMode #page-project {
   z-index: 100;
 }
 
+.modal.modalFront {
+  z-index: 120;
+}
+
+.modal.modalFront .modalPanel {
+  width: min(820px, calc(100vw - 2rem));
+  max-height: min(88vh, 720px);
+}
+
 .modal.hidden {
   display: none;
 }
