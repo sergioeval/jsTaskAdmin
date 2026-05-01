@@ -235,12 +235,15 @@
                   </select>
                 </div>
 
-                <div class="panel panel-linkedNotes">
+                <div id="taskLinkedNotes" class="panel panel-linkedNotes">
                   <h4 class="panelTitle">Linked notes</h4>
-                  <label class="label" for="taskLinkedNotes">Select notes to link</label>
-                  <select id="taskLinkedNotes" class="select" multiple size="5" aria-label="Linked notes"></select>
-                  <div id="taskLinkedNotesList" class="linkedNotesList" aria-label="Linked notes list"></div>
-                  <p class="finePrint">Hold Ctrl/Cmd to select multiple notes. Linked notes stay inside this project.</p>
+                  <div id="taskLinkedNotesDropdown" class="dropdown" aria-label="Select notes to link">
+                    <div class="dropdown-trigger">Select notes...</div>
+                    <div class="dropdown-menu hidden">
+                      <div id="taskLinkedNotesList" class="linkedNotesList" aria-label="Linked notes list"></div>
+                    </div>
+                  </div>
+                  <p class="finePrint">Click to select notes. Linked notes stay inside this project.</p>
                 </div>
 
                 <div class="panel panel-checklist">

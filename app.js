@@ -33,6 +33,7 @@ const taskEditPriority = document.getElementById("taskEditPriority");
 const taskEditStatus = document.getElementById("taskEditStatus");
 const taskLinkedNotes = document.getElementById("taskLinkedNotes");
 const taskLinkedNotesList = document.getElementById("taskLinkedNotesList");
+const taskLinkedNotesDropdown = document.getElementById("taskLinkedNotesDropdown");
 const deleteTaskBtn = document.getElementById("deleteTaskBtn");
 const checklistList = document.getElementById("checklistList");
 const newChecklistText = document.getElementById("newChecklistText");
@@ -624,6 +625,15 @@ let mindMapSelectedNodeId = null;
 let mindMapDrag = null;
 let mindMapDragCandidate = null;
 let mindMapDragListenersAttached = false;
+let linkedNotesSelection = new Set();
+
+function toggleLinkedNoteSelection(noteId) {
+  if (linkedNotesSelection.has(noteId)) {
+    linkedNotesSelection.delete(noteId);
+  } else {
+    linkedNotesSelection.add(noteId);
+  }
+}
 /** After creating a map, select it once `renderMindMaps` rebuilds the dropdown. */
 let pendingMindMapSelectId = null;
 /** Node id being edited in the double-click popup (if open). */
@@ -849,8 +859,80 @@ function getEditingTask() {
 }
 
 function getSelectedLinkedNoteIds() {
-  if (!taskLinkedNotes) return [];
-  return sanitizeLinkedNoteIds([...taskLinkedNotes.selectedOptions].map((opt) => opt.value));
+  return sanitizeLinkedNoteIds([...linkedNotesSelection]);
+}
+
+function renderLinkedNotes(task) {
+  if (!taskLinkedNotesDropdown || !taskLinkedNotesList) return;
+  const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
+  const notes = Array.isArray(project?.notes) ? project?.notes : [];
+  const selected = new Set(sanitizeLinkedNoteIds(task?.linked_notes, notes));
+
+  linkedNotesSelection = new Set(selected);
+
+  taskLinkedNotesList.innerHTML = "";
+  if (notes.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "taskSmall";
+    empty.textContent = "No notes available in this project yet.";
+    taskLinkedNotesList.appendChild(empty);
+    updateDropdownTrigger();
+    return;
+  }
+
+  for (const n of notes) {
+    const item = document.createElement("label");
+    item.className = "dropdownItem";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = linkedNotesSelection.has(n.id);
+    cb.addEventListener("change", () => {
+      toggleLinkedNoteSelection(n.id);
+      const refreshed = getEditingTask();
+      if (refreshed) {
+        refreshTaskLinkedNotesField();
+      }
+    });
+
+    const span = document.createElement("span");
+    span.textContent = n.title || "Untitled";
+
+    item.appendChild(cb);
+    item.appendChild(span);
+    taskLinkedNotesList.appendChild(item);
+  }
+
+  updateDropdownTrigger();
+
+  const linked = notes.filter((n) => selected.has(n.id));
+  if (linked.length === 0) {
+    return;
+  }
+
+  const container = taskLinkedNotesList;
+  for (const n of linked) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "linkedNotePill";
+    item.textContent = n.title || "Untitled";
+    item.title = "Open note";
+    item.addEventListener("click", () => openLinkedNoteEditor(n.id));
+    container.appendChild(item);
+  }
+}
+
+function updateDropdownTrigger() {
+  if (!taskLinkedNotesDropdown) return;
+  const trigger = taskLinkedNotesDropdown.querySelector(".dropdown-trigger");
+  if (!trigger) return;
+  const count = linkedNotesSelection.size;
+  trigger.textContent = count > 0 ? `${count} note${count === 1 ? "" : "s"} selected` : "Select notes...";
+}
+
+function refreshTaskLinkedNotesField() {
+  const task = getEditingTask();
+  if (task) renderLinkedNotes(task);
 }
 
 function renderLinkedNotes(task) {
@@ -1112,7 +1194,8 @@ function closeTaskEditor() {
   taskEditTitle.value = "";
   taskEditStatus.value = "todo";
   if (taskEditPriority) taskEditPriority.value = "5";
-  if (taskLinkedNotes) taskLinkedNotes.innerHTML = "";
+  linkedNotesSelection = new Set();
+  if (taskLinkedNotesDropdown) taskLinkedNotesDropdown.querySelector(".dropdown-trigger").textContent = "Select notes...";
   if (taskLinkedNotesList) taskLinkedNotesList.innerHTML = "";
   newChecklistText.value = "";
   checklistList.innerHTML = "";
@@ -1924,6 +2007,21 @@ loginForm.addEventListener("submit", (e) => {
   login(userNumber);
 });
 
+if (taskLinkedNotesDropdown) {
+  const trigger = taskLinkedNotesDropdown.querySelector(".dropdown-trigger");
+  const menu = taskLinkedNotesDropdown.querySelector(".dropdown-menu");
+  if (trigger && menu) {
+    trigger.addEventListener("click", () => {
+      menu.classList.toggle("hidden");
+    });
+    document.addEventListener("click", (e) => {
+      if (!taskLinkedNotesDropdown.contains(e.target)) {
+        menu.classList.add("hidden");
+      }
+    });
+  }
+}
+
 logoutBtn.addEventListener("click", () => logout());
 
 newProjectBtn.addEventListener("click", () => {
@@ -2207,20 +2305,12 @@ modalTask.addEventListener("click", (e) => {
   if (e.target === modalTask) closeTaskEditor();
 });
 
-if (taskLinkedNotes) {
-  taskLinkedNotes.addEventListener("change", () => {
-    const task = getEditingTask();
-    if (task) renderLinkedNotes({ ...task, linked_notes: getSelectedLinkedNoteIds() });
-  });
-}
-
 taskEditForm.addEventListener("submit", (e) => {
   e.preventDefault();
   if (!currentWorkspace || !editingTaskId) return;
   const title = String(taskEditTitle.value || "").trim();
   const status = STATUSES.includes(taskEditStatus.value) ? taskEditStatus.value : "backlog";
   const priority = clampPriority(taskEditPriority?.value);
-  const linked_notes = getSelectedLinkedNoteIds();
   if (!title) return;
 
   updateProject((proj) => ({
@@ -2233,7 +2323,7 @@ taskEditForm.addEventListener("submit", (e) => {
             title,
             status,
             priority,
-            linked_notes,
+            linked_notes: getSelectedLinkedNoteIds(),
             updatedAt: nowIso(),
             checklist: Array.isArray(x.checklist) ? x.checklist : [],
             comments: Array.isArray(x.comments) ? x.comments : [],
