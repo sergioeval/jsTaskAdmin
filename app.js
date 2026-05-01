@@ -1012,12 +1012,10 @@ function renderLinkedMaps(task) {
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = linkedMapsSelection.has(m.id);
-    cb.addEventListener("change", () => {
+    cb.addEventListener("change", (e) => {
+      e.stopPropagation();
       toggleLinkedMapSelection(m.id);
-      const refreshed = getEditingTask();
-      if (refreshed) {
-        refreshTaskLinkedMapsField();
-      }
+      updateMapsDropdownTrigger();
     });
 
     const span = document.createElement("span");
