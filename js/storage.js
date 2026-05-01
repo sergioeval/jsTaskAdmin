@@ -238,7 +238,10 @@ function clearUserStorage(userNumber) {
 export function importWorkspaceSnapshot(userNumber, snapshot) {
   const ws = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot : null;
   if (!ws) throw new Error("Invalid JSON");
-  if (String(ws.userNumber) !== String(userNumber)) throw new Error("That JSON belongs to another user");
+  // Backward-compatible: older exports may not include userNumber.
+  if (ws.userNumber != null && String(ws.userNumber) !== String(userNumber)) {
+    throw new Error("That JSON belongs to another user");
+  }
 
   let projects = [];
   if (Array.isArray(ws.projects)) projects = ws.projects;
