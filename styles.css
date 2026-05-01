@@ -663,6 +663,7 @@ body.projectMode #page-project {
   color: var(--muted);
 }
 
+.linkedNotesBadge,
 .checklistBadge {
   display: inline-flex;
   align-items: center;
@@ -676,6 +677,28 @@ body.projectMode #page-project {
   background: rgba(0, 0, 0, 0.22);
   color: var(--muted);
   white-space: nowrap;
+}
+
+.linkedNotesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.linkedNotePill {
+  border: 1px solid rgba(122, 162, 255, 0.3);
+  background: rgba(122, 162, 255, 0.12);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.linkedNotePill:hover {
+  border-color: rgba(122, 162, 255, 0.6);
+  background: rgba(122, 162, 255, 0.2);
 }
 
 .taskTitle {

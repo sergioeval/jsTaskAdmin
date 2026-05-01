@@ -93,7 +93,7 @@
 
           <div class="tabs" role="tablist" aria-label="Project tabs">
             <button id="tabTasksBtn" class="tab active" type="button" role="tab" aria-selected="true">
-              Tareas
+              Tasks
             </button>
             <button id="tabNotesBtn" class="tab" type="button" role="tab" aria-selected="false">
               Notes
@@ -236,6 +236,14 @@
                 </div>
 
                 <div class="panel">
+                  <h4 class="panelTitle">Linked notes</h4>
+                  <label class="label" for="taskLinkedNotes">Select notes to link</label>
+                  <select id="taskLinkedNotes" class="select" multiple size="5" aria-label="Linked notes"></select>
+                  <div id="taskLinkedNotesList" class="linkedNotesList" aria-label="Linked notes list"></div>
+                  <p class="finePrint">Hold Ctrl/Cmd to select multiple notes. Linked notes stay inside this project.</p>
+                </div>
+
+                <div class="panel">
                   <h4 class="panelTitle">Checklist</h4>
                   <div id="checklistList" class="checklistList" aria-label="Activity list"></div>
 
@@ -330,8 +338,8 @@
                       placeholder="Name…"
                     />
                   </div>
-                  <button id="mindMapSaveNameBtn" class="btnSecondary" type="button">Save nombre</button>
-                  <button id="mindMapDeleteMapBtn" class="btnSecondary" type="button">Delete mapa</button>
+                  <button id="mindMapSaveNameBtn" class="btnSecondary" type="button">Save name</button>
+                  <button id="mindMapDeleteMapBtn" class="btnSecondary" type="button">Delete map</button>
                 </div>
                 <div class="panel mindMapTools">
                   <p class="finePrint mindMapHelp">
@@ -415,7 +423,7 @@
               class="input"
               type="text"
               maxlength="200"
-              placeholder="Title del nodo…"
+              placeholder="Node title…"
               required
             />
           </div>
@@ -448,8 +456,8 @@
             <p class="finePrint mindMapQuickEdgeHint">This field does not apply to the map root.</p>
           </div>
           <div class="row wrap mindMapQuickActions">
-            <button id="mindMapQuickAddChildBtn" class="btn" type="button">Add hijo</button>
-            <button id="mindMapQuickDeleteNodeBtn" class="btnSecondary" type="button">Delete nodo</button>
+            <button id="mindMapQuickAddChildBtn" class="btn" type="button">Add child</button>
+            <button id="mindMapQuickDeleteNodeBtn" class="btnSecondary" type="button">Delete node</button>
           </div>
           <div class="row wrap">
             <button id="mindMapQuickCancelBtn" class="btnSecondary" type="button">Cancel</button>

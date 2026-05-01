@@ -31,6 +31,8 @@ const taskEditForm = document.getElementById("taskEditForm");
 const taskEditTitle = document.getElementById("taskEditTitle");
 const taskEditPriority = document.getElementById("taskEditPriority");
 const taskEditStatus = document.getElementById("taskEditStatus");
+const taskLinkedNotes = document.getElementById("taskLinkedNotes");
+const taskLinkedNotesList = document.getElementById("taskLinkedNotesList");
 const deleteTaskBtn = document.getElementById("deleteTaskBtn");
 const checklistList = document.getElementById("checklistList");
 const newChecklistText = document.getElementById("newChecklistText");
@@ -203,6 +205,28 @@ function safeParseJson(text) {
   }
 }
 
+function sanitizeLinkedNoteIds(raw, notes = null) {
+  const validNoteIds = Array.isArray(notes)
+    ? new Set(
+        notes
+          .filter((n) => n && typeof n === "object")
+          .map((n) => String(n.id || "").trim())
+          .filter((id) => id.length > 0)
+      )
+    : null;
+  const input = Array.isArray(raw) ? raw : [];
+  const seen = new Set();
+  const ids = [];
+  for (const item of input) {
+    const id = String(item || "").trim();
+    if (!id || seen.has(id)) continue;
+    if (validNoteIds && !validNoteIds.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 function getUserSchemaVersion(userNumber) {
   const v = localStorage.getItem(STORAGE.schemaKey(userNumber));
   return v ? Number(v) : null;
@@ -228,7 +252,7 @@ function loadProject(userNumber, projectId) {
   if (!parsed || typeof parsed !== "object") return null;
   return {
     id: String(parsed.id || projectId),
-    name: String(parsed.name || "Proyecto"),
+    name: String(parsed.name || "Project"),
     createdAt: parsed.createdAt || nowIso(),
     updatedAt: parsed.updatedAt || nowIso(),
   };
@@ -257,6 +281,7 @@ function loadProjectTasks(userNumber, projectId) {
       title: String(t.title || "").trim() || "Untitled",
       status: STATUSES.includes(t.status) ? t.status : "backlog",
       priority: clampPriority(t.priority),
+      linked_notes: sanitizeLinkedNoteIds(t.linked_notes),
       checklist: Array.isArray(t.checklist)
         ? t.checklist
             .filter((c) => c && typeof c === "object")
@@ -485,7 +510,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
     .filter((p) => p && typeof p === "object")
     .map((p) => {
       const projectId = String(p.id || uuid());
-      const name = String(p.name || "Proyecto").trim() || "Proyecto";
+      const name = String(p.name || "Project").trim() || "Project";
       const createdAt = p.createdAt || nowIso();
       const updatedAt = nowIso();
       const tasks = Array.isArray(p.tasks) ? p.tasks : [];
@@ -498,6 +523,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
           title: String(t.title || t.text || "").trim() || "Untitled",
           status: STATUSES.includes(t.status) ? t.status : "backlog",
           priority: clampPriority(t.priority),
+          linked_notes: sanitizeLinkedNoteIds(t.linked_notes, notes),
           checklist: Array.isArray(t.checklist)
             ? t.checklist
                 .filter((c) => c && typeof c === "object")
@@ -702,13 +728,13 @@ function renderProjectsPage(ws) {
     const openBtn = document.createElement("button");
     openBtn.type = "button";
     openBtn.className = "btn";
-    openBtn.textContent = "Entrar";
+    openBtn.textContent = "Open";
     openBtn.addEventListener("click", () => goProject(p.id));
 
     const renameBtn = document.createElement("button");
     renameBtn.type = "button";
     renameBtn.className = "btnSecondary";
-    renameBtn.textContent = "Renombrar";
+    renameBtn.textContent = "Rename";
     renameBtn.addEventListener("click", () => renameProject(p.id));
 
     const delBtn = document.createElement("button");
@@ -763,6 +789,18 @@ function taskCard(task) {
   badge.title = `Priority ${prio} (1 = highest priority)`;
 
   const { done, total } = checklistProgress(task);
+  const linkedNoteIds = sanitizeLinkedNoteIds(task.linked_notes);
+  const linkedNotesBadge =
+    linkedNoteIds.length > 0
+      ? (() => {
+          const b = document.createElement("span");
+          b.className = "linkedNotesBadge";
+          b.textContent = `📝 ${linkedNoteIds.length}`;
+          b.title = `${linkedNoteIds.length} linked note${linkedNoteIds.length === 1 ? "" : "s"}`;
+          return b;
+        })()
+      : null;
+
   const checklistBadge =
     total > 0
       ? (() => {
@@ -782,6 +820,7 @@ function taskCard(task) {
 
   actions.appendChild(badge);
   if (checklistBadge) actions.appendChild(checklistBadge);
+  if (linkedNotesBadge) actions.appendChild(linkedNotesBadge);
   actions.appendChild(editBtn);
 
   meta.appendChild(small);
@@ -805,6 +844,57 @@ function getEditingTask() {
   if (!currentWorkspace || !editingTaskId) return null;
   const p = getCurrentProject(currentWorkspace);
   return p?.tasks.find((x) => x.id === editingTaskId) || null;
+}
+
+function getSelectedLinkedNoteIds() {
+  if (!taskLinkedNotes) return [];
+  return sanitizeLinkedNoteIds([...taskLinkedNotes.selectedOptions].map((opt) => opt.value));
+}
+
+function renderLinkedNotes(task) {
+  if (!taskLinkedNotes || !taskLinkedNotesList) return;
+  const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
+  const notes = Array.isArray(project?.notes) ? project.notes : [];
+  const selected = new Set(sanitizeLinkedNoteIds(task?.linked_notes, notes));
+
+  taskLinkedNotes.innerHTML = "";
+  taskLinkedNotes.disabled = notes.length === 0;
+
+  for (const n of notes) {
+    const option = document.createElement("option");
+    option.value = n.id;
+    option.textContent = n.title || "Untitled";
+    option.selected = selected.has(n.id);
+    taskLinkedNotes.appendChild(option);
+  }
+
+  taskLinkedNotesList.innerHTML = "";
+  if (notes.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "taskSmall";
+    empty.textContent = "No notes available in this project yet.";
+    taskLinkedNotesList.appendChild(empty);
+    return;
+  }
+
+  const linked = notes.filter((n) => selected.has(n.id));
+  if (linked.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "taskSmall";
+    empty.textContent = "No linked notes selected.";
+    taskLinkedNotesList.appendChild(empty);
+    return;
+  }
+
+  for (const n of linked) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "linkedNotePill";
+    item.textContent = n.title || "Untitled";
+    item.title = "Open note";
+    item.addEventListener("click", () => openNoteEditor(n.id));
+    taskLinkedNotesList.appendChild(item);
+  }
 }
 
 function renderComments(task) {
@@ -1006,6 +1096,7 @@ function openTaskEditor(taskId) {
   taskEditTitle.value = t.title;
   taskEditStatus.value = t.status;
   if (taskEditPriority) taskEditPriority.value = String(clampPriority(t.priority));
+  renderLinkedNotes(t);
   newChecklistText.value = "";
   renderChecklist(t);
   newCommentText.value = "";
@@ -1019,6 +1110,8 @@ function closeTaskEditor() {
   taskEditTitle.value = "";
   taskEditStatus.value = "todo";
   if (taskEditPriority) taskEditPriority.value = "5";
+  if (taskLinkedNotes) taskLinkedNotes.innerHTML = "";
+  if (taskLinkedNotesList) taskLinkedNotesList.innerHTML = "";
   newChecklistText.value = "";
   checklistList.innerHTML = "";
   newCommentText.value = "";
@@ -1047,7 +1140,7 @@ function renderBoard(ws) {
       byStatus[s].sort((a, b) => {
         const pa = clampPriority(a.priority);
         const pb = clampPriority(b.priority);
-        if (pa !== pb) return pa - pb; // 1 (más importante) primero
+        if (pa !== pb) return pa - pb; // 1 (highest priority) first
         return ts(b) - ts(a);
       });
     } else {
@@ -1479,7 +1572,7 @@ function mindMapGetRootNode() {
   return mindMapWorkingCopy.nodes.find((x) => x.parentId === null) || mindMapWorkingCopy.nodes[0] || null;
 }
 
-/** Crea un hijo bajo `parentId`. Devuelve el id del nuevo nodo o null. */
+/** Creates a child under `parentId`. Returns the new node id or null. */
 function mindMapAddChildUnderParent(parentId) {
   if (!mindMapWorkingCopy) return null;
   const parent = mindMapWorkingCopy.nodes.find((x) => x.id === parentId);
@@ -1745,7 +1838,7 @@ function renderMindMaps(ws) {
     const o = document.createElement("option");
     o.value = m.id;
     const nn = Array.isArray(m.nodes) ? m.nodes.length : 0;
-    o.textContent = `${m.name} (${nn} nodos)`;
+    o.textContent = `${m.name} (${nn} nodes)`;
     mindMapSelect.appendChild(o);
   }
 
@@ -1940,6 +2033,7 @@ taskForm.addEventListener("submit", (e) => {
       title,
       status,
       priority,
+      linked_notes: [],
       checklist: [],
       comments: [],
       createdAt: nowIso(),
@@ -2072,6 +2166,10 @@ deleteNoteBtn.addEventListener("click", () => {
   updateProjectWithNotes((proj) => ({
     ...proj,
     notes: (Array.isArray(proj.notes) ? proj.notes : []).filter((x) => x.id !== id),
+    tasks: (Array.isArray(proj.tasks) ? proj.tasks : []).map((t) => ({
+      ...t,
+      linked_notes: sanitizeLinkedNoteIds(t.linked_notes).filter((noteId) => noteId !== id),
+    })),
   }));
   toast("Note deleted.");
   closeNoteEditor();
@@ -2089,12 +2187,20 @@ modalTask.addEventListener("click", (e) => {
   if (e.target === modalTask) closeTaskEditor();
 });
 
+if (taskLinkedNotes) {
+  taskLinkedNotes.addEventListener("change", () => {
+    const task = getEditingTask();
+    if (task) renderLinkedNotes({ ...task, linked_notes: getSelectedLinkedNoteIds() });
+  });
+}
+
 taskEditForm.addEventListener("submit", (e) => {
   e.preventDefault();
   if (!currentWorkspace || !editingTaskId) return;
   const title = String(taskEditTitle.value || "").trim();
   const status = STATUSES.includes(taskEditStatus.value) ? taskEditStatus.value : "backlog";
   const priority = clampPriority(taskEditPriority?.value);
+  const linked_notes = getSelectedLinkedNoteIds();
   if (!title) return;
 
   updateProject((proj) => ({
@@ -2107,6 +2213,7 @@ taskEditForm.addEventListener("submit", (e) => {
             title,
             status,
             priority,
+            linked_notes,
             updatedAt: nowIso(),
             checklist: Array.isArray(x.checklist) ? x.checklist : [],
             comments: Array.isArray(x.comments) ? x.comments : [],
