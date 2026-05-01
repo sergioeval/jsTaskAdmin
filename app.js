@@ -81,6 +81,7 @@ const mindMapEditorSection = document.getElementById("mindMapEditorSection");
 const mindMapNameInput = document.getElementById("mindMapNameInput");
 const mindMapSaveNameBtn = document.getElementById("mindMapSaveNameBtn");
 const mindMapDeleteMapBtn = document.getElementById("mindMapDeleteMapBtn");
+const closeMindMapBtn = document.getElementById("closeMindMapBtn");
 const mindMapInner = document.getElementById("mindMapInner");
 const mindMapWorld = document.getElementById("mindMapWorld");
 const mindMapSvg = document.getElementById("mindMapSvg");
@@ -154,6 +155,7 @@ function setTaskModal(open) {
 function setNoteModal(open) {
   modalNote.classList.toggle("hidden", !open);
   modalNote.classList.toggle("modalFront", Boolean(open && noteOpenedFromTask));
+  if (mindMapEditorSection) mindMapEditorSection.classList.toggle("modalFront", Boolean(open && mapOpenedFromTask));
 }
 
 // localStorage stores strings only. Best practice here is to normalize the data:
@@ -646,6 +648,7 @@ let currentUserNumber = null;
 let currentProjectTab = "tasks";
 let editingNoteId = null;
 let noteOpenedFromTask = false;
+let mapOpenedFromTask = false;
 let currentNotesTag = "";
 
 let editingMindMapId = null;
@@ -1466,12 +1469,14 @@ function openLinkedNoteEditor(noteId) {
 
 function openLinkedMapEditor(mapId) {
   if (!mapId) return;
+  mapOpenedFromTask = true;
   const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
   const maps = Array.isArray(project?.mindMaps) ? project.mindMaps : [];
   const found = maps.find((m) => m.id === mapId);
   if (found) {
     setProjectTab("mindmaps");
     selectMindMap(mapId);
+    setMindMapEditorVisible(true);
   }
 }
 
@@ -1976,6 +1981,13 @@ function loadMindMapForEditing(mapId) {
   if (currentProjectTab === "mindmaps") attachMindMapDragListeners();
 }
 
+function closeMapEditor() {
+  if (mapOpenedFromTask) {
+    setMindMapEditorVisible(false);
+    mapOpenedFromTask = false;
+  }
+}
+
 function unloadMindMapEditor() {
   window.clearTimeout(mindMapInnerClearSelectionTimer);
   mindMapInnerClearSelectionTimer = null;
@@ -1991,7 +2003,6 @@ function unloadMindMapEditor() {
     mindMapInner.style.width = "";
     mindMapInner.style.height = "";
   }
-  if (mindMapWorld) mindMapWorld.style.transform = "";
   setMindMapEditorVisible(false);
 }
 
@@ -2569,6 +2580,10 @@ mindMapDeleteMapBtn.addEventListener("click", () => {
     })),
   }));
   toast("Map deleted.");
+});
+
+closeMindMapBtn.addEventListener("click", () => {
+  closeMapEditor();
 });
 
 mindMapInner.addEventListener("click", (e) => {
