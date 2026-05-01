@@ -554,7 +554,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
           status: STATUSES.includes(t.status) ? t.status : "backlog",
           priority: clampPriority(t.priority),
           linked_notes: sanitizeLinkedNoteIds(t.linked_notes, notes),
-          linked_maps: sanitizeLinkedMapIds(t.linked_maps, maps),
+          linked_maps: sanitizeLinkedMapIds(t.linked_maps, mindMapsRaw),
           checklist: Array.isArray(t.checklist)
             ? t.checklist
                 .filter((c) => c && typeof c === "object")
