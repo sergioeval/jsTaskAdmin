@@ -159,6 +159,34 @@ body.projectMode #page-project {
   font-size: 0.9rem;
 }
 
+.importPreview {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.importPreview .error {
+  color: #dc3545;
+  margin: 0;
+}
+
+.importPreview .warning {
+  color: #ffc107;
+  margin: 0.5rem 0 0;
+}
+
+.importPreview p {
+  margin: 0 0 0.5rem;
+}
+
+.importPreview label {
+  display: block;
+  margin-top: 0.5rem;
+  cursor: pointer;
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr;

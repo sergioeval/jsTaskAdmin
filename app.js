@@ -2216,9 +2216,37 @@ exportBtn.addEventListener("click", () => {
   toast("Exported.");
 });
 
-importFile.addEventListener("change", () => {
-  importBtn.disabled = !importFile.files?.length;
+importFile.addEventListener("change", async () => {
+  importBtn.disabled = true;
+  importPreview.innerHTML = "";
+  if (!importFile.files?.length) return;
+
+  try {
+    const text = await importFile.files[0].text();
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      importPreview.innerHTML = '<p class="error">Invalid JSON file</p>';
+      return;
+    }
+    const pCount = Array.isArray(parsed.projects) ? parsed.projects.length : Array.isArray(parsed.items) ? 1 : 0;
+    const tCount = Array.isArray(parsed.projects) ? parsed.projects.reduce((sum, p) => sum + (Array.isArray(p.tasks) ? p.tasks.length : 0), 0) : 0;
+    const nCount = Array.isArray(parsed.projects) ? parsed.projects.reduce((sum, p) => sum + (Array.isArray(p.notes) ? p.notes.length : 0), 0) : 0;
+    const mCount = Array.isArray(parsed.projects) ? parsed.projects.reduce((sum, p) => sum + (Array.isArray(p.mindMaps) ? p.mindMaps.length : 0), 0) : 0;
+    const jsonUser = parsed.userNumber || null;
+
+    let previewHtml = `<p><strong>Found:</strong> ${pCount} project(s), ${tCount} task(s), ${nCount} note(s), ${mCount} mind map(s)</p>`;
+    if (jsonUser && jsonUser !== currentUserNumber) {
+      previewHtml += `<p class="warning">⚠️ This JSON belongs to user ${jsonUser}. Current user is ${currentUserNumber}.</p>`;
+      previewHtml += `<label class="label"><input type="checkbox" id="forceImport" /> Import anyway (will assign to current user)</label>`;
+    }
+    importPreview.innerHTML = previewHtml;
+    importBtn.disabled = false;
+  } catch (err) {
+    importPreview.innerHTML = `<p class="error">Error reading file: ${err.message}</p>`;
+  }
 });
+
+const importPreview = document.getElementById("importPreview");
 
 importBtn.addEventListener("click", async () => {
   if (!currentWorkspace || !currentUserNumber) return;
@@ -2233,11 +2261,17 @@ importBtn.addEventListener("click", async () => {
       return;
     }
 
-    importWorkspaceSnapshot(currentUserNumber, parsed);
+    const forceImport = document.getElementById("forceImport")?.checked;
+    const snapshot = forceImport ? { ...parsed, userNumber: currentUserNumber } : parsed;
+
+    importWorkspaceSnapshot(currentUserNumber, snapshot);
     const next = buildWorkspaceSnapshot(currentUserNumber);
     currentProjectId = next.projects[0]?.id || null;
     setWorkspace(next);
     goProjects();
+    importFile.value = "";
+    importPreview.innerHTML = "";
+    importBtn.disabled = true;
     toast("Imported.");
   } catch (err) {
     toast(err?.message ? `Error: ${err.message}` : "Import failed.");
