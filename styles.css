@@ -184,6 +184,18 @@ body.projectMode #page-project {
   font-size: 1.05rem;
 }
 
+.panel-linkedNotes {
+  border-inline-start: 4px solid #9d4edd;
+}
+
+.panel-checklist {
+  border-inline-start: 4px solid #14b8a6;
+}
+
+.panel-comments {
+  border-inline-start: 4px solid #f59e0b;
+}
+
 .page {
   display: grid;
   gap: 0.9rem;
