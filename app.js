@@ -34,6 +34,7 @@ const taskEditStatus = document.getElementById("taskEditStatus");
 const taskLinkedNotes = document.getElementById("taskLinkedNotes");
 const taskLinkedNotesList = document.getElementById("taskLinkedNotesList");
 const taskLinkedNotesDropdown = document.getElementById("taskLinkedNotesDropdown");
+const taskLinkedNotesPills = document.getElementById("taskLinkedNotesPills");
 const deleteTaskBtn = document.getElementById("deleteTaskBtn");
 const checklistList = document.getElementById("checklistList");
 const newChecklistText = document.getElementById("newChecklistText");
@@ -863,7 +864,7 @@ function getSelectedLinkedNoteIds() {
 }
 
 function renderLinkedNotes(task) {
-  if (!taskLinkedNotesDropdown || !taskLinkedNotesList) return;
+  if (!taskLinkedNotesDropdown || !taskLinkedNotesList || !taskLinkedNotesPills) return;
   const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
   const notes = Array.isArray(project?.notes) ? project?.notes : [];
   const selected = new Set(sanitizeLinkedNoteIds(task?.linked_notes, notes));
@@ -871,6 +872,7 @@ function renderLinkedNotes(task) {
   linkedNotesSelection = new Set(selected);
 
   taskLinkedNotesList.innerHTML = "";
+  taskLinkedNotesPills.innerHTML = "";
   if (notes.length === 0) {
     const empty = document.createElement("p");
     empty.className = "taskSmall";
@@ -906,11 +908,6 @@ function renderLinkedNotes(task) {
   updateDropdownTrigger();
 
   const linked = notes.filter((n) => selected.has(n.id));
-  if (linked.length === 0) {
-    return;
-  }
-
-  const container = taskLinkedNotesList;
   for (const n of linked) {
     const item = document.createElement("button");
     item.type = "button";
@@ -918,7 +915,7 @@ function renderLinkedNotes(task) {
     item.textContent = n.title || "Untitled";
     item.title = "Open note";
     item.addEventListener("click", () => openLinkedNoteEditor(n.id));
-    container.appendChild(item);
+    taskLinkedNotesPills.appendChild(item);
   }
 }
 
@@ -933,52 +930,6 @@ function updateDropdownTrigger() {
 function refreshTaskLinkedNotesField() {
   const task = getEditingTask();
   if (task) renderLinkedNotes(task);
-}
-
-function renderLinkedNotes(task) {
-  if (!taskLinkedNotes || !taskLinkedNotesList) return;
-  const project = currentWorkspace ? getCurrentProject(currentWorkspace) : null;
-  const notes = Array.isArray(project?.notes) ? project.notes : [];
-  const selected = new Set(sanitizeLinkedNoteIds(task?.linked_notes, notes));
-
-  taskLinkedNotes.innerHTML = "";
-  taskLinkedNotes.disabled = notes.length === 0;
-
-  for (const n of notes) {
-    const option = document.createElement("option");
-    option.value = n.id;
-    option.textContent = n.title || "Untitled";
-    option.selected = selected.has(n.id);
-    taskLinkedNotes.appendChild(option);
-  }
-
-  taskLinkedNotesList.innerHTML = "";
-  if (notes.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "taskSmall";
-    empty.textContent = "No notes available in this project yet.";
-    taskLinkedNotesList.appendChild(empty);
-    return;
-  }
-
-  const linked = notes.filter((n) => selected.has(n.id));
-  if (linked.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "taskSmall";
-    empty.textContent = "No linked notes selected.";
-    taskLinkedNotesList.appendChild(empty);
-    return;
-  }
-
-  for (const n of linked) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "linkedNotePill";
-    item.textContent = n.title || "Untitled";
-    item.title = "Open note";
-    item.addEventListener("click", () => openLinkedNoteEditor(n.id));
-    taskLinkedNotesList.appendChild(item);
-  }
 }
 
 function renderComments(task) {
@@ -1197,6 +1148,7 @@ function closeTaskEditor() {
   linkedNotesSelection = new Set();
   if (taskLinkedNotesDropdown) taskLinkedNotesDropdown.querySelector(".dropdown-trigger").textContent = "Select notes...";
   if (taskLinkedNotesList) taskLinkedNotesList.innerHTML = "";
+  if (taskLinkedNotesPills) taskLinkedNotesPills.innerHTML = "";
   newChecklistText.value = "";
   checklistList.innerHTML = "";
   newCommentText.value = "";

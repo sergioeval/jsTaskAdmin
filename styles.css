@@ -752,11 +752,18 @@ body.projectMode #page-project {
   white-space: nowrap;
 }
 
-.linkedNotesList {
+.linkedNotesList,
+.linkedNotesPills {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.75rem;
+}
+
+.linkedNotesOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .linkedNotePill {
