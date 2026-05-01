@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,15 +10,15 @@
     <main class="app">
       <header class="header">
         <h1 class="title">Local Workspace</h1>
-        <p class="hint">JS puro + HTML + CSS. Todo se guarda localmente por número de usuario.</p>
+        <p class="hint">Pure JS + HTML + CSS. Everything is stored locally by user number.</p>
       </header>
 
       <section id="view-login" class="card" aria-label="Login">
-        <h2 class="cardTitle">Ingresar</h2>
-        <p class="hint">Solo pedimos un <strong>número de usuario</strong>. No hay contraseña.</p>
+        <h2 class="cardTitle">Sign in</h2>
+        <p class="hint">We only ask for a <strong>user number</strong>. There is no password.</p>
 
         <form id="loginForm" class="form">
-          <label class="label" for="userNumber">Número de usuario</label>
+          <label class="label" for="userNumber">User number</label>
           <div class="row">
             <input
               id="userNumber"
@@ -26,16 +26,16 @@
               class="input"
               inputmode="numeric"
               autocomplete="off"
-              placeholder="ej: 1001"
+              placeholder="e.g. 1001"
               required
               min="1"
               step="1"
               type="number"
             />
-            <button class="btn" type="submit">Entrar</button>
+            <button class="btn" type="submit">Enter</button>
           </div>
           <p class="finePrint">
-            Esto crea/carga tu “workspace” desde el navegador (localStorage) y lo podés exportar/importar como JSON.
+            This creates/loads your workspace from the browser (localStorage), and you can export/import it as JSON.
           </p>
         </form>
       </section>
@@ -45,77 +45,77 @@
           <div>
             <h2 class="cardTitle">Welcome</h2>
             <p class="hint">
-              Usuario: <strong><span id="currentUser">—</span></strong>
+              User: <strong><span id="currentUser">—</span></strong>
             </p>
           </div>
-          <button id="logoutBtn" class="btnSecondary" type="button">Salir</button>
+          <button id="logoutBtn" class="btnSecondary" type="button">Log out</button>
         </div>
 
-        <section id="page-projects" class="page" aria-label="Proyectos">
+        <section id="page-projects" class="page" aria-label="Projects">
           <div class="panel">
             <div class="row wrap">
               <div class="grow">
-                <h3 class="panelTitle">Proyectos</h3>
-                <p class="hint">Creá y administrá tus proyectos. Entrá a uno para ver su kanban.</p>
+                <h3 class="panelTitle">Projects</h3>
+                <p class="hint">Create and manage your projects. Open one to view its kanban board.</p>
               </div>
-              <button id="newProjectBtn" class="btn" type="button">Nuevo proyecto</button>
+              <button id="newProjectBtn" class="btn" type="button">New project</button>
             </div>
           </div>
 
-          <div id="projectList" class="projectList" aria-label="Lista de proyectos"></div>
+          <div id="projectList" class="projectList" aria-label="Project list"></div>
 
           <div class="panel">
-            <h3 class="panelTitle">Exportar / Importar</h3>
-            <p class="hint">Usá esto para respaldar/restaurar tu workspace.</p>
+            <h3 class="panelTitle">Export / Import</h3>
+            <p class="hint">Use this to back up or restore your workspace.</p>
 
             <div class="row wrap">
-              <button id="exportBtn" class="btn" type="button">Exportar JSON</button>
+              <button id="exportBtn" class="btn" type="button">Export JSON</button>
               <input id="importFile" class="file" type="file" accept="application/json,.json" />
-              <button id="importBtn" class="btn" type="button" disabled>Importar JSON</button>
+              <button id="importBtn" class="btn" type="button" disabled>Import JSON</button>
             </div>
 
-            <p class="finePrint">Importar reemplaza el workspace actual del usuario.</p>
+            <p class="finePrint">Importing replaces the current user workspace.</p>
           </div>
         </section>
 
-        <section id="page-project" class="page hidden" aria-label="Proyecto">
+        <section id="page-project" class="page hidden" aria-label="Project">
           <div class="panel">
             <div class="row wrap">
-              <button id="backToProjectsBtn" class="btnSecondary" type="button">← Proyectos</button>
+              <button id="backToProjectsBtn" class="btnSecondary" type="button">← Projects</button>
               <div class="grow">
-                <h3 class="panelTitle" id="projectName">Proyecto</h3>
-                <p class="hint">Kanban del proyecto.</p>
+                <h3 class="panelTitle" id="projectName">Project</h3>
+                <p class="hint">Project kanban board.</p>
               </div>
-              <button id="renameProjectBtn" class="btnSecondary" type="button">Renombrar</button>
-              <button id="deleteProjectBtn" class="btnSecondary" type="button">Eliminar</button>
+              <button id="renameProjectBtn" class="btnSecondary" type="button">Rename</button>
+              <button id="deleteProjectBtn" class="btnSecondary" type="button">Delete</button>
             </div>
           </div>
 
-          <div class="tabs" role="tablist" aria-label="Pestañas del proyecto">
+          <div class="tabs" role="tablist" aria-label="Project tabs">
             <button id="tabTasksBtn" class="tab active" type="button" role="tab" aria-selected="true">
               Tareas
             </button>
             <button id="tabNotesBtn" class="tab" type="button" role="tab" aria-selected="false">
-              Notas
+              Notes
             </button>
             <button id="tabMindMapsBtn" class="tab" type="button" role="tab" aria-selected="false">
               MindMaps
             </button>
           </div>
 
-          <section id="tabTasks" class="page" aria-label="Tareas">
+          <section id="tabTasks" class="page" aria-label="Tasks">
             <div class="panel">
-            <h3 class="panelTitle">Nueva tarea</h3>
+            <h3 class="panelTitle">New task</h3>
             <form id="taskForm" class="row wrap">
               <input
                 id="taskTitle"
                 class="input"
                 type="text"
-                placeholder="Título de la tarea…"
+                placeholder="Task title…"
                 maxlength="140"
                 required
               />
-              <label class="labelInline" for="taskPriority">Prioridad</label>
+              <label class="labelInline" for="taskPriority">Priority</label>
               <select id="taskPriority" class="select">
                 <option value="1">1</option>
                 <option value="2">2</option>
@@ -136,9 +136,9 @@
                 <option value="blocked">Blocked</option>
                 <option value="done">Done</option>
               </select>
-              <button class="btn" type="submit">Crear</button>
+              <button class="btn" type="submit">Create</button>
             </form>
-            <p class="finePrint">Tip: podés mover tareas arrastrando entre columnas.</p>
+            <p class="finePrint">Tip: you can move tasks by dragging them between columns.</p>
           </div>
 
           <section class="kanban" aria-label="Kanban">
@@ -179,7 +179,7 @@
             <div class="modalPanel">
               <div class="modalHeader">
                 <h3 class="panelTitle">Backlog</h3>
-                <button id="closeBacklogBtn" class="btnSecondary" type="button">Cerrar</button>
+                <button id="closeBacklogBtn" class="btnSecondary" type="button">Close</button>
               </div>
               <div class="dropzone modalDropzone" data-status="backlog" id="col-backlog"></div>
             </div>
@@ -189,27 +189,27 @@
             <div class="modalPanel">
               <div class="modalHeader">
                 <h3 class="panelTitle">Done</h3>
-                <button id="closeDoneBtn" class="btnSecondary" type="button">Cerrar</button>
+                <button id="closeDoneBtn" class="btnSecondary" type="button">Close</button>
               </div>
               <div class="dropzone modalDropzone" data-status="done" id="col-done"></div>
             </div>
           </div>
 
-          <div id="modalTask" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar tarea">
+          <div id="modalTask" class="modal hidden" role="dialog" aria-modal="true" aria-label="Edit task">
             <div class="modalPanel">
               <div class="modalHeader">
-                <h3 class="panelTitle">Editar tarea</h3>
-                <button id="closeTaskBtn" class="btnSecondary" type="button">Cerrar</button>
+                <h3 class="panelTitle">Edit task</h3>
+                <button id="closeTaskBtn" class="btnSecondary" type="button">Close</button>
               </div>
 
               <form id="taskEditForm" class="page">
                 <div>
-                  <label class="label" for="taskEditTitle">Título</label>
+                  <label class="label" for="taskEditTitle">Title</label>
                   <input id="taskEditTitle" class="input" type="text" maxlength="140" required />
                 </div>
 
                 <div>
-                  <label class="label" for="taskEditPriority">Prioridad (1 = más importante)</label>
+                  <label class="label" for="taskEditPriority">Priority (1 = highest priority)</label>
                   <select id="taskEditPriority" class="select">
                     <option value="1">1</option>
                     <option value="2">2</option>
@@ -237,106 +237,106 @@
 
                 <div class="panel">
                   <h4 class="panelTitle">Checklist</h4>
-                  <div id="checklistList" class="checklistList" aria-label="Lista de actividades"></div>
+                  <div id="checklistList" class="checklistList" aria-label="Activity list"></div>
 
                   <div class="row wrap">
                     <input
                       id="newChecklistText"
                       class="input"
                       type="text"
-                      placeholder="Agregar actividad…"
+                      placeholder="Add activity…"
                       maxlength="140"
                     />
-                    <button id="addChecklistBtn" class="btn" type="button">Agregar</button>
+                    <button id="addChecklistBtn" class="btn" type="button">Add</button>
                   </div>
-                  <p class="finePrint">Marcá actividades como completadas y editá/borrá cuando haga falta.</p>
+                  <p class="finePrint">Mark activities as completed and edit/delete them when needed.</p>
                 </div>
 
                 <div class="panel">
-                  <h4 class="panelTitle">Comentarios</h4>
-                  <div id="commentsList" class="commentsList" aria-label="Lista de comentarios"></div>
+                  <h4 class="panelTitle">Comments</h4>
+                  <div id="commentsList" class="commentsList" aria-label="Comment list"></div>
 
                   <div class="row wrap">
                     <textarea
                       id="newCommentText"
                       class="input textarea"
-                      placeholder="Agregar comentario…"
+                      placeholder="Add comment…"
                       maxlength="5000"
                       rows="4"
                     ></textarea>
-                    <button id="addCommentBtn" class="btn" type="button">Agregar</button>
+                    <button id="addCommentBtn" class="btn" type="button">Add</button>
                   </div>
-                  <p class="finePrint">Los comentarios se guardan dentro de la tarea.</p>
+                  <p class="finePrint">Comments are stored inside the task.</p>
                 </div>
 
                 <div class="row wrap">
-                  <button id="deleteTaskBtn" class="btnSecondary" type="button">Borrar tarea</button>
+                  <button id="deleteTaskBtn" class="btnSecondary" type="button">Delete task</button>
                   <div class="kanbanSpacer"></div>
-                  <button class="btnSecondary" type="button" id="cancelTaskBtn">Cancelar</button>
-                  <button class="btn" type="submit">Guardar</button>
+                  <button class="btnSecondary" type="button" id="cancelTaskBtn">Cancel</button>
+                  <button class="btn" type="submit">Save</button>
                 </div>
               </form>
             </div>
           </div>
           </section>
 
-          <section id="tabNotes" class="page hidden" aria-label="Notas">
+          <section id="tabNotes" class="page hidden" aria-label="Notes">
             <div class="panel">
               <div class="row wrap">
                 <div class="grow">
-                  <h3 class="panelTitle">Notas</h3>
-                  <p class="hint">Creá notas y editá en un popup.</p>
+                  <h3 class="panelTitle">Notes</h3>
+                  <p class="hint">Create notes and edit them in a popup.</p>
                 </div>
                 <div class="row wrap">
-                  <label class="labelInline" for="notesTagFilter">Filtrar por tag</label>
+                  <label class="labelInline" for="notesTagFilter">Filter by tag</label>
                   <select id="notesTagFilter" class="select">
-                    <option value="">Todos</option>
+                    <option value="">All</option>
                   </select>
                 </div>
-                <button id="newNoteBtn" class="btn" type="button">Nueva nota</button>
+                <button id="newNoteBtn" class="btn" type="button">New note</button>
               </div>
             </div>
 
-            <div id="notesList" class="notesList" aria-label="Lista de notas"></div>
+            <div id="notesList" class="notesList" aria-label="Notes list"></div>
           </section>
 
-          <section id="tabMindMaps" class="page hidden" aria-label="Mapas mentales">
+          <section id="tabMindMaps" class="page hidden" aria-label="Mind maps">
             <div class="panel">
               <div class="row wrap">
                 <div class="grow">
                   <h3 class="panelTitle">MindMaps</h3>
-                  <p class="hint">Elegí un mapa en el menú y editá en esta misma pestaña; todo se guarda en tu workspace.</p>
+                  <p class="hint">Choose a map from the menu and edit it in this same tab; everything is saved in your workspace.</p>
                 </div>
                 <div class="row wrap mindMapPickerRow">
-                  <label class="labelInline" for="mindMapSelect">Mapa</label>
-                  <select id="mindMapSelect" class="select mindMapSelect" aria-label="Seleccionar mapa mental">
-                    <option value="">— Elegí un mapa —</option>
+                  <label class="labelInline" for="mindMapSelect">Map</label>
+                  <select id="mindMapSelect" class="select mindMapSelect" aria-label="Select mind map">
+                    <option value="">— Choose a map —</option>
                   </select>
-                  <button id="newMindMapBtn" class="btn" type="button">Nuevo mapa</button>
+                  <button id="newMindMapBtn" class="btn" type="button">New map</button>
                 </div>
               </div>
             </div>
 
-            <div id="mindMapEditorSection" class="panel mindMapEditorSection hidden" aria-label="Editor de mapa mental">
+            <div id="mindMapEditorSection" class="panel mindMapEditorSection hidden" aria-label="Mind map editor">
               <div class="page">
                 <div class="row wrap">
                   <div class="grow">
-                    <label class="label" for="mindMapNameInput">Nombre del mapa</label>
+                    <label class="label" for="mindMapNameInput">Map name</label>
                     <input
                       id="mindMapNameInput"
                       class="input"
                       type="text"
                       maxlength="140"
-                      placeholder="Nombre…"
+                      placeholder="Name…"
                     />
                   </div>
-                  <button id="mindMapSaveNameBtn" class="btnSecondary" type="button">Guardar nombre</button>
-                  <button id="mindMapDeleteMapBtn" class="btnSecondary" type="button">Eliminar mapa</button>
+                  <button id="mindMapSaveNameBtn" class="btnSecondary" type="button">Save nombre</button>
+                  <button id="mindMapDeleteMapBtn" class="btnSecondary" type="button">Delete mapa</button>
                 </div>
                 <div class="panel mindMapTools">
                   <p class="finePrint mindMapHelp">
-                    Clic en un nodo para seleccionarlo. Doble clic en un nodo abre el editor. Doble clic en el fondo del mapa
-                    crea un nodo hijo (del nodo seleccionado o de la raíz si no hay selección). Arrastrá un nodo para moverlo.
+                    Click a node to select it. Double-click a node to open the editor. Double-click the map background
+                    to create a child node (from the selected node, or from the root if nothing is selected). Drag a node to move it.
                   </p>
                 </div>
                 <div id="mindMapViewport" class="mindMapViewport">
@@ -351,39 +351,39 @@
             </div>
           </section>
 
-          <div id="modalNote" class="modal hidden" role="dialog" aria-modal="true" aria-label="Editar nota">
+          <div id="modalNote" class="modal hidden" role="dialog" aria-modal="true" aria-label="Edit note">
             <div class="modalPanel">
               <div class="modalHeader">
-                <h3 class="panelTitle" id="noteModalTitle">Nota</h3>
-                <button id="closeNoteBtn" class="btnSecondary" type="button">Cerrar</button>
+                <h3 class="panelTitle" id="noteModalTitle">Note</h3>
+                <button id="closeNoteBtn" class="btnSecondary" type="button">Close</button>
               </div>
 
               <form id="noteForm" class="page">
                 <div>
-                  <label class="label" for="noteTitle">Título</label>
-                  <input id="noteTitle" class="input" type="text" maxlength="140" placeholder="Título…" required />
+                  <label class="label" for="noteTitle">Title</label>
+                  <input id="noteTitle" class="input" type="text" maxlength="140" placeholder="Title…" required />
                 </div>
                 <div>
-                  <label class="label" for="noteBody">Contenido</label>
-                  <textarea id="noteBody" class="input textarea" rows="10" placeholder="Escribí tus notas…"></textarea>
+                  <label class="label" for="noteBody">Content</label>
+                  <textarea id="noteBody" class="input textarea" rows="10" placeholder="Write your notes…"></textarea>
                 </div>
                 <div>
-                  <label class="label" for="noteTags">Tags (separados por coma)</label>
+                  <label class="label" for="noteTags">Tags (comma-separated)</label>
                   <input
                     id="noteTags"
                     class="input"
                     type="text"
                     maxlength="240"
-                    placeholder="ej: idea, reunión, urgente"
+                    placeholder="e.g. idea, meeting, urgent"
                   />
-                  <div id="noteTagsPicker" class="tagPicker" aria-label="Tags existentes"></div>
+                  <div id="noteTagsPicker" class="tagPicker" aria-label="Existing tags"></div>
                 </div>
 
                 <div class="row wrap">
-                  <button id="deleteNoteBtn" class="btnSecondary" type="button">Borrar nota</button>
+                  <button id="deleteNoteBtn" class="btnSecondary" type="button">Delete note</button>
                   <div class="kanbanSpacer"></div>
-                  <button id="noteCancelBtn" class="btnSecondary" type="button">Cancelar</button>
-                  <button id="noteSaveBtn" class="btn" type="submit">Guardar</button>
+                  <button id="noteCancelBtn" class="btnSecondary" type="button">Cancel</button>
+                  <button id="noteSaveBtn" class="btn" type="submit">Save</button>
                 </div>
               </form>
             </div>
@@ -400,61 +400,61 @@
       role="dialog"
       aria-modal="true"
       aria-hidden="true"
-      aria-label="Editar nodo del mapa mental"
+      aria-label="Edit mind map node"
     >
       <div class="modalPanel modalMindMapNodePanel">
         <div class="modalHeader">
-          <h3 class="panelTitle">Editar nodo</h3>
-          <button id="closeMindMapQuickBtn" class="btnSecondary" type="button">Cerrar</button>
+          <h3 class="panelTitle">Edit node</h3>
+          <button id="closeMindMapQuickBtn" class="btnSecondary" type="button">Close</button>
         </div>
         <form id="mindMapQuickForm" class="page mindMapQuickForm">
           <div>
-            <label class="label" for="mindMapQuickLabel">Texto</label>
+            <label class="label" for="mindMapQuickLabel">Text</label>
             <input
               id="mindMapQuickLabel"
               class="input"
               type="text"
               maxlength="200"
-              placeholder="Título del nodo…"
+              placeholder="Title del nodo…"
               required
             />
           </div>
           <div>
-            <label class="label" for="mindMapQuickDesc">Descripción</label>
+            <label class="label" for="mindMapQuickDesc">Description</label>
             <textarea
               id="mindMapQuickDesc"
               class="input textarea mindMapQuickDesc"
               maxlength="5000"
               rows="4"
-              placeholder="Opcional…"
+              placeholder="Optional…"
             ></textarea>
           </div>
           <div>
-            <label class="label" for="mindMapQuickParent">Nodo padre</label>
-            <select id="mindMapQuickParent" class="select" aria-label="Nodo padre"></select>
+            <label class="label" for="mindMapQuickParent">Parent node</label>
+            <select id="mindMapQuickParent" class="select" aria-label="Parent node"></select>
             <p class="finePrint mindMapQuickParentHint">
-              Solo aplica a nodos hijos. No podés elegir este nodo ni sus descendientes como padre.
+              Only applies to child nodes. You cannot choose this node or its descendants as the parent.
             </p>
           </div>
           <div>
-            <label class="label" for="mindMapQuickEdge">Texto en la conexión (padre → este nodo)</label>
+            <label class="label" for="mindMapQuickEdge">Text on the connection (parent → this node)</label>
             <input
               id="mindMapQuickEdge"
               class="input"
               type="text"
               maxlength="120"
-              placeholder="Solo aplica a nodos hijos…"
+              placeholder="Only applies to child nodes…"
             />
-            <p class="finePrint mindMapQuickEdgeHint">En la raíz del mapa este campo no aplica.</p>
+            <p class="finePrint mindMapQuickEdgeHint">This field does not apply to the map root.</p>
           </div>
           <div class="row wrap mindMapQuickActions">
-            <button id="mindMapQuickAddChildBtn" class="btn" type="button">Agregar hijo</button>
-            <button id="mindMapQuickDeleteNodeBtn" class="btnSecondary" type="button">Eliminar nodo</button>
+            <button id="mindMapQuickAddChildBtn" class="btn" type="button">Add hijo</button>
+            <button id="mindMapQuickDeleteNodeBtn" class="btnSecondary" type="button">Delete nodo</button>
           </div>
           <div class="row wrap">
-            <button id="mindMapQuickCancelBtn" class="btnSecondary" type="button">Cancelar</button>
+            <button id="mindMapQuickCancelBtn" class="btnSecondary" type="button">Cancel</button>
             <div class="kanbanSpacer"></div>
-            <button id="mindMapQuickSaveBtn" class="btn" type="submit">Guardar</button>
+            <button id="mindMapQuickSaveBtn" class="btn" type="submit">Save</button>
           </div>
         </form>
       </div>

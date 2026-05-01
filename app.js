@@ -254,7 +254,7 @@ function loadProjectTasks(userNumber, projectId) {
     .filter((t) => t && typeof t === "object")
     .map((t) => ({
       id: String(t.id || uuid()),
-      title: String(t.title || "").trim() || "Sin título",
+      title: String(t.title || "").trim() || "Untitled",
       status: STATUSES.includes(t.status) ? t.status : "backlog",
       priority: clampPriority(t.priority),
       checklist: Array.isArray(t.checklist)
@@ -297,7 +297,7 @@ function loadProjectNotes(userNumber, projectId) {
     .filter((n) => n && typeof n === "object")
     .map((n) => ({
       id: String(n.id || uuid()),
-      title: String(n.title || "").trim() || "Sin título",
+      title: String(n.title || "").trim() || "Untitled",
       body: String(n.body || ""),
       tags: Array.isArray(n.tags)
         ? n.tags.map((t) => String(t || "").trim()).filter((t) => t.length > 0)
@@ -326,7 +326,7 @@ function clampMindCoord(v) {
 
 function sanitizeMindMap(mm) {
   const id = String(mm?.id || uuid());
-  const name = String(mm?.name || "Mapa").trim() || "Mapa";
+  const name = String(mm?.name || "Map").trim() || "Map";
   let nodes = Array.isArray(mm?.nodes) ? mm.nodes : [];
   nodes = nodes
     .filter((n) => n && typeof n === "object")
@@ -338,7 +338,7 @@ function sanitizeMindMap(mm) {
       const description = String(n.description ?? n.desc ?? "").trim().slice(0, 5000);
       return {
         id: String(n.id || uuid()),
-        label: String(n.label || "").trim().slice(0, 200) || "Nodo",
+        label: String(n.label || "").trim().slice(0, 200) || "Node",
         x: clampMindCoord(n.x),
         y: clampMindCoord(n.y),
         parentId,
@@ -370,7 +370,7 @@ function defaultMindMap(name) {
   const rootId = uuid();
   return sanitizeMindMap({
     id: uuid(),
-    name: String(name || "").trim() || "Mapa",
+    name: String(name || "").trim() || "Map",
     createdAt: nowIso(),
     updatedAt: nowIso(),
     nodes: [{ id: rootId, label: "Central", x: 480, y: 260, parentId: null }],
@@ -453,8 +453,8 @@ function clearUserStorage(userNumber) {
 function importWorkspaceSnapshot(userNumber, snapshot) {
   // Accept legacy formats and normalize into schemaVersion 4 storage (tasks, notes, mind maps per project).
   const ws = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot : null;
-  if (!ws) throw new Error("JSON inválido");
-  if (String(ws.userNumber) !== String(userNumber)) throw new Error("Ese JSON es de otro usuario");
+  if (!ws) throw new Error("Invalid JSON");
+  if (String(ws.userNumber) !== String(userNumber)) throw new Error("That JSON belongs to another user");
 
   // Convert formats:
   // - v1: { items: [...] }
@@ -469,7 +469,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
         ...defaultProject("Default"),
         tasks: ws.items.map((it) => ({
           id: it.id || uuid(),
-          title: String(it.text || "").trim() || "Sin título",
+          title: String(it.text || "").trim() || "Untitled",
           status: "backlog",
           createdAt: it.createdAt || nowIso(),
           updatedAt: nowIso(),
@@ -495,7 +495,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
         .filter((t) => t && typeof t === "object")
         .map((t) => ({
           id: String(t.id || uuid()),
-          title: String(t.title || t.text || "").trim() || "Sin título",
+          title: String(t.title || t.text || "").trim() || "Untitled",
           status: STATUSES.includes(t.status) ? t.status : "backlog",
           priority: clampPriority(t.priority),
           checklist: Array.isArray(t.checklist)
@@ -529,7 +529,7 @@ function importWorkspaceSnapshot(userNumber, snapshot) {
         .filter((n) => n && typeof n === "object")
         .map((n) => ({
           id: String(n.id || uuid()),
-          title: String(n.title || "").trim() || "Sin título",
+          title: String(n.title || "").trim() || "Untitled",
           body: String(n.body || ""),
           tags: Array.isArray(n.tags)
             ? n.tags.map((t) => String(t || "").trim()).filter((t) => t.length > 0)
@@ -714,7 +714,7 @@ function renderProjectsPage(ws) {
     const delBtn = document.createElement("button");
     delBtn.type = "button";
     delBtn.className = "btnSecondary";
-    delBtn.textContent = "Eliminar";
+    delBtn.textContent = "Delete";
     delBtn.addEventListener("click", () => deleteProject(p.id));
 
     actions.appendChild(openBtn);
@@ -752,7 +752,7 @@ function taskCard(task) {
 
   const small = document.createElement("p");
   small.className = "taskSmall";
-  small.textContent = new Date(task.updatedAt || task.createdAt).toLocaleString();
+  small.textContent = new Date(task.updatedAt || task.createdAt).toLocaleString("en-US");
 
   const actions = document.createElement("div");
   actions.className = "taskActions";
@@ -760,7 +760,7 @@ function taskCard(task) {
   const badge = document.createElement("span");
   badge.className = "priorityBadge";
   badge.textContent = String(prio);
-  badge.title = `Prioridad ${prio} (1 = más importante)`;
+  badge.title = `Priority ${prio} (1 = highest priority)`;
 
   const { done, total } = checklistProgress(task);
   const checklistBadge =
@@ -769,7 +769,7 @@ function taskCard(task) {
           const b = document.createElement("span");
           b.className = "checklistBadge";
           b.textContent = `✓ ${done}/${total}`;
-          b.title = "Progreso del checklist";
+          b.title = "Checklist progress";
           return b;
         })()
       : null;
@@ -777,7 +777,7 @@ function taskCard(task) {
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "iconBtn";
-  editBtn.textContent = "Editar";
+  editBtn.textContent = "Edit";
   editBtn.addEventListener("click", () => openTaskEditor(task.id));
 
   actions.appendChild(badge);
@@ -814,7 +814,7 @@ function renderComments(task) {
   if (comments.length === 0) {
     const empty = document.createElement("p");
     empty.className = "taskSmall";
-    empty.textContent = "Sin comentarios.";
+    empty.textContent = "No comments yet.";
     commentsList.appendChild(empty);
     return;
   }
@@ -832,7 +832,7 @@ function renderComments(task) {
 
     const small = document.createElement("p");
     small.className = "commentSmall";
-    small.textContent = new Date(c.updatedAt || c.createdAt).toLocaleString();
+    small.textContent = new Date(c.updatedAt || c.createdAt).toLocaleString("en-US");
 
     const actions = document.createElement("div");
     actions.className = "taskActions";
@@ -840,22 +840,22 @@ function renderComments(task) {
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "iconBtn";
-    editBtn.textContent = "Editar";
+    editBtn.textContent = "Edit";
     editBtn.addEventListener("click", () => {
       // Use the textarea editor so comments can be multiline.
       newCommentText.value = c.text;
       newCommentText.focus();
       // stash editing id on the element to avoid extra globals
       newCommentText.dataset.editingCommentId = c.id;
-      addCommentBtn.textContent = "Guardar comentario";
+      addCommentBtn.textContent = "Save comment";
     });
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
     delBtn.className = "iconBtn";
-    delBtn.textContent = "Borrar";
+    delBtn.textContent = "Delete";
     delBtn.addEventListener("click", () => {
-      const ok = confirm("Borrar comentario?");
+      const ok = confirm("Delete comment?");
       if (!ok) return;
 
       updateProject((proj) => ({
@@ -870,7 +870,7 @@ function renderComments(task) {
 
       const refreshed = getEditingTask();
       if (refreshed) renderComments(refreshed);
-      toast("Comentario borrado.");
+      toast("Comment deleted.");
     });
 
     actions.appendChild(editBtn);
@@ -892,7 +892,7 @@ function renderChecklist(task) {
   if (items.length === 0) {
     const empty = document.createElement("p");
     empty.className = "taskSmall";
-    empty.textContent = "Sin actividades.";
+    empty.textContent = "No activities yet.";
     checklistList.appendChild(empty);
     return;
   }
@@ -926,7 +926,7 @@ function renderChecklist(task) {
       }));
       const refreshed = getEditingTask();
       if (refreshed) renderChecklist(refreshed);
-      toast("Checklist actualizada.");
+      toast("Checklist updated.");
     });
 
     const text = document.createElement("p");
@@ -939,9 +939,9 @@ function renderChecklist(task) {
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "iconBtn";
-    editBtn.textContent = "Editar";
+    editBtn.textContent = "Edit";
     editBtn.addEventListener("click", () => {
-      const next = prompt("Editar actividad:", item.text);
+      const next = prompt("Edit activity:", item.text);
       const trimmed = String(next || "").trim();
       if (!trimmed) return;
       updateProject((proj) => ({
@@ -961,15 +961,15 @@ function renderChecklist(task) {
       }));
       const refreshed = getEditingTask();
       if (refreshed) renderChecklist(refreshed);
-      toast("Actividad actualizada.");
+      toast("Activity updated.");
     });
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
     delBtn.className = "iconBtn";
-    delBtn.textContent = "Borrar";
+    delBtn.textContent = "Delete";
     delBtn.addEventListener("click", () => {
-      const ok = confirm("Borrar actividad?");
+      const ok = confirm("Delete activity?");
       if (!ok) return;
       updateProject((proj) => ({
         ...proj,
@@ -982,7 +982,7 @@ function renderChecklist(task) {
       }));
       const refreshed = getEditingTask();
       if (refreshed) renderChecklist(refreshed);
-      toast("Actividad borrada.");
+      toast("Activity deleted.");
     });
 
     actions.appendChild(editBtn);
@@ -1023,7 +1023,7 @@ function closeTaskEditor() {
   checklistList.innerHTML = "";
   newCommentText.value = "";
   delete newCommentText.dataset.editingCommentId;
-  addCommentBtn.textContent = "Agregar";
+  addCommentBtn.textContent = "Add";
   commentsList.innerHTML = "";
   setTaskModal(false);
 }
@@ -1070,7 +1070,7 @@ function renderBoard(ws) {
 
           const label = document.createElement("span");
           label.className = "priorityDividerLabel";
-          label.textContent = `Prioridad ${prio}`;
+          label.textContent = `Priority ${prio}`;
           divider.appendChild(label);
 
           columns[s].appendChild(divider);
@@ -1087,7 +1087,7 @@ function renderBoard(ws) {
 
 function renderProjectPage(ws) {
   const p = getCurrentProject(ws);
-  projectNameEl.textContent = p?.name || "Proyecto";
+  projectNameEl.textContent = p?.name || "Project";
   renderBoard(ws);
   renderNotes(ws);
   renderMindMaps(ws);
@@ -1150,7 +1150,7 @@ function renderNoteTagsPicker(project) {
     btn.type = "button";
     btn.className = `tag tagPick${selected.has(t.norm) ? " isSelected" : ""}`;
     btn.textContent = t.display;
-    btn.title = selected.has(t.norm) ? "Quitar tag" : "Agregar tag";
+    btn.title = selected.has(t.norm) ? "Remove tag" : "Add tag";
     btn.addEventListener("click", () => {
       toggleTagInInput(t.display);
       renderNoteTagsPicker(project);
@@ -1167,8 +1167,8 @@ function resetNoteForm() {
   noteTags.value = "";
   if (noteTags) noteTags.oninput = null;
   if (noteTagsPicker) noteTagsPicker.innerHTML = "";
-  noteSaveBtn.textContent = "Guardar";
-  noteModalTitle.textContent = "Nueva nota";
+  noteSaveBtn.textContent = "Save";
+  noteModalTitle.textContent = "New note";
   deleteNoteBtn.disabled = true;
 }
 
@@ -1183,8 +1183,8 @@ function openNoteEditor(noteId) {
     noteTitle.value = n.title;
     noteBody.value = n.body || "";
     noteTags.value = Array.isArray(n.tags) ? n.tags.join(", ") : "";
-    noteSaveBtn.textContent = "Guardar";
-    noteModalTitle.textContent = "Editar nota";
+    noteSaveBtn.textContent = "Save";
+    noteModalTitle.textContent = "Edit note";
     deleteNoteBtn.disabled = false;
   } else {
     resetNoteForm();
@@ -1225,7 +1225,7 @@ function renderNotes(ws) {
         if (!tagSet.has(norm)) tagSet.set(norm, display);
       }
     }
-    const options = [{ value: "", label: "Todos" }];
+    const options = [{ value: "", label: "All" }];
     for (const [value, label] of [...tagSet.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
       options.push({ value, label });
     }
@@ -1236,7 +1236,7 @@ function renderNotes(ws) {
       o.textContent = opt.label;
       notesTagFilter.appendChild(o);
     }
-    // keep selection if still valid, else reset to Todos
+    // keep selection if still valid, else reset to All
     notesTagFilter.value = options.some((o) => o.value === prev) ? prev : "";
     currentNotesTag = notesTagFilter.value;
   }
@@ -1252,7 +1252,7 @@ function renderNotes(ws) {
   if (filtered.length === 0) {
     const empty = document.createElement("p");
     empty.className = "hint";
-    empty.textContent = currentNotesTag ? "No hay notas con ese tag." : "Sin notas todavía.";
+    empty.textContent = currentNotesTag ? "There are no notes with that tag." : "No notes yet.";
     notesList.appendChild(empty);
     return;
   }
@@ -1277,7 +1277,7 @@ function renderNotes(ws) {
     title.textContent = n.title;
     const meta = document.createElement("p");
     meta.className = "taskSmall";
-    meta.textContent = new Date(n.updatedAt || n.createdAt).toLocaleString();
+    meta.textContent = new Date(n.updatedAt || n.createdAt).toLocaleString("en-US");
     left.appendChild(title);
     left.appendChild(meta);
 
@@ -1286,22 +1286,22 @@ function renderNotes(ws) {
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "iconBtn";
-    editBtn.textContent = "Editar";
+    editBtn.textContent = "Edit";
     editBtn.addEventListener("click", () => openNoteEditor(n.id));
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
     delBtn.className = "iconBtn";
-    delBtn.textContent = "Borrar";
+    delBtn.textContent = "Delete";
     delBtn.addEventListener("click", () => {
-      const ok = confirm("Borrar nota?");
+      const ok = confirm("Delete note?");
       if (!ok) return;
       updateProjectWithNotes((proj) => ({
         ...proj,
         notes: (Array.isArray(proj.notes) ? proj.notes : []).filter((x) => x.id !== n.id),
       }));
       if (editingNoteId === n.id) closeNoteEditor();
-      toast("Nota borrada.");
+      toast("Note deleted.");
     });
 
     actions.appendChild(editBtn);
@@ -1365,7 +1365,7 @@ function fillMindMapParentSelect(selectEl, node) {
   if (!node.parentId) {
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = "Raíz del mapa (sin padre)";
+    opt.textContent = "Map root (no parent)";
     selectEl.appendChild(opt);
     selectEl.value = "";
     selectEl.disabled = true;
@@ -1377,7 +1377,7 @@ function fillMindMapParentSelect(selectEl, node) {
   const sorted = [...validIds].sort((a, b) => {
     const la = String(nodes.find((x) => x.id === a)?.label || a);
     const lb = String(nodes.find((x) => x.id === b)?.label || b);
-    return la.localeCompare(lb, "es");
+    return la.localeCompare(lb, "en");
   });
 
   for (const id of sorted) {
@@ -1440,8 +1440,8 @@ function syncMindMapQuickModalActions() {
   const onlyOne = mindMapWorkingCopy.nodes.length <= 1;
   mindMapQuickDeleteNodeBtn.disabled = onlyOne;
   mindMapQuickDeleteNodeBtn.title = onlyOne
-    ? "No podés borrar el único nodo."
-    : "Eliminar este nodo y todas las ramas debajo";
+    ? "You cannot delete the only node."
+    : "Delete this node and all branches below";
 }
 
 function closeMindMapNodeQuickEdit() {
@@ -1488,7 +1488,7 @@ function mindMapAddChildUnderParent(parentId) {
   const nid = uuid();
   mindMapWorkingCopy.nodes.push({
     id: nid,
-    label: "Nuevo",
+    label: "New",
     x: pos.x,
     y: pos.y,
     parentId: parent.id,
@@ -1738,7 +1738,7 @@ function renderMindMaps(ws) {
   mindMapSelect.innerHTML = "";
   const optEmpty = document.createElement("option");
   optEmpty.value = "";
-  optEmpty.textContent = maps.length ? "— Elegí un mapa —" : "Sin mapas (creá uno nuevo)";
+  optEmpty.textContent = maps.length ? "— Choose a map —" : "No maps yet (create a new one)";
   mindMapSelect.appendChild(optEmpty);
 
   for (const m of sorted) {
@@ -1807,14 +1807,14 @@ function logout() {
   unloadMindMapEditor();
   setPage("projects");
   setView(false);
-  toast("Sesión cerrada.");
+  toast("Signed out.");
 }
 
 loginForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const userNumber = sanitizeUserNumber(userNumberInput.value);
   if (!userNumber) {
-    toast("Número inválido.");
+    toast("Invalid number.");
     return;
   }
   login(userNumber);
@@ -1824,7 +1824,7 @@ logoutBtn.addEventListener("click", () => logout());
 
 newProjectBtn.addEventListener("click", () => {
   if (!currentWorkspace || !currentUserNumber) return;
-  const name = prompt("Nombre del proyecto:");
+  const name = prompt("Project name:");
   const trimmed = String(name || "").trim();
   if (!trimmed) return;
 
@@ -1840,31 +1840,31 @@ newProjectBtn.addEventListener("click", () => {
   currentProjectId = p.id;
   setWorkspace(next);
   goProject(p.id);
-  toast("Proyecto creado.");
+  toast("Project created.");
 });
 
 function renameProject(projectId) {
   if (!currentWorkspace || !currentUserNumber) return;
   const p = currentWorkspace.projects.find((x) => x.id === projectId);
   if (!p) return;
-  const name = prompt("Nuevo nombre:", p.name);
+  const name = prompt("New name:", p.name);
   const trimmed = String(name || "").trim();
   if (!trimmed) return;
 
   saveProject(currentUserNumber, { ...p, name: trimmed, updatedAt: nowIso() });
   setWorkspace(buildWorkspaceSnapshot(currentUserNumber));
-  toast("Renombrado.");
+  toast("Renamed.");
 }
 
 function deleteProject(projectId) {
   if (!currentWorkspace || !currentUserNumber) return;
   if (currentWorkspace.projects.length <= 1) {
-    toast("Debe existir al menos 1 proyecto.");
+    toast("At least 1 project must exist.");
     return;
   }
   const p = currentWorkspace.projects.find((x) => x.id === projectId);
   if (!p) return;
-  const ok = confirm(`Eliminar proyecto "${p.name}"?`);
+  const ok = confirm(`Delete project "${p.name}"?`);
   if (!ok) return;
 
   const ids = listProjectIds(currentUserNumber).filter((id) => id !== projectId);
@@ -1878,7 +1878,7 @@ function deleteProject(projectId) {
   if (currentProjectId === projectId) currentProjectId = next.projects[0].id;
   setWorkspace(next);
   goProjects();
-  toast("Proyecto eliminado.");
+  toast("Project deleted.");
 }
 
 renameProjectBtn.addEventListener("click", () => {
@@ -1950,7 +1950,7 @@ taskForm.addEventListener("submit", (e) => {
 
   taskTitleInput.value = "";
   if (taskPrioritySelect) taskPrioritySelect.value = "5";
-  toast("Tarea creada.");
+  toast("Task created.");
 });
 
 function editTask(taskId) {
@@ -1960,14 +1960,14 @@ function editTask(taskId) {
 
 function deleteTask(taskId) {
   if (!currentWorkspace) return;
-  const ok = confirm("Borrar tarea?");
+  const ok = confirm("Delete task?");
   if (!ok) return;
   updateProject((proj) => ({
     ...proj,
     updatedAt: nowIso(),
     tasks: proj.tasks.filter((x) => x.id !== taskId),
   }));
-  toast("Borrada.");
+  toast("Deleted.");
 }
 
 function moveTask(taskId, toStatus) {
@@ -1997,7 +1997,7 @@ for (const s of STATUSES) {
       e.dataTransfer?.getData("application/x-task-id") || e.dataTransfer?.getData("text/plain");
     if (!id) return;
     moveTask(id, s);
-    toast("Movida.");
+    toast("Moved.");
   });
 }
 
@@ -2060,20 +2060,20 @@ noteForm.addEventListener("submit", (e) => {
     return { ...proj, updatedAt: now, notes: [note, ...existing] };
   });
 
-  toast(editingNoteId ? "Nota guardada." : "Nota creada.");
+  toast(editingNoteId ? "Note saved." : "Note created.");
   closeNoteEditor();
 });
 
 deleteNoteBtn.addEventListener("click", () => {
   if (!editingNoteId) return;
-  const ok = confirm("Borrar nota?");
+  const ok = confirm("Delete note?");
   if (!ok) return;
   const id = editingNoteId;
   updateProjectWithNotes((proj) => ({
     ...proj,
     notes: (Array.isArray(proj.notes) ? proj.notes : []).filter((x) => x.id !== id),
   }));
-  toast("Nota borrada.");
+  toast("Note deleted.");
   closeNoteEditor();
 });
 
@@ -2114,7 +2114,7 @@ taskEditForm.addEventListener("submit", (e) => {
         : x
     ),
   }));
-  toast("Guardado.");
+  toast("Saved.");
   closeTaskEditor();
 });
 
@@ -2137,7 +2137,7 @@ addChecklistBtn.addEventListener("click", () => {
   newChecklistText.value = "";
   const refreshed = getEditingTask();
   if (refreshed) renderChecklist(refreshed);
-  toast("Actividad agregada.");
+  toast("Activity added.");
 });
 
 addCommentBtn.addEventListener("click", () => {
@@ -2169,11 +2169,11 @@ addCommentBtn.addEventListener("click", () => {
   }));
 
   delete newCommentText.dataset.editingCommentId;
-  addCommentBtn.textContent = "Agregar";
+  addCommentBtn.textContent = "Add";
   newCommentText.value = "";
   const refreshed = getEditingTask();
   if (refreshed) renderComments(refreshed);
-  toast(editingCommentId ? "Comentario guardado." : "Comentario agregado.");
+  toast(editingCommentId ? "Comment saved." : "Comment added.");
 });
 
 deleteTaskBtn.addEventListener("click", () => {
@@ -2203,7 +2203,7 @@ window.addEventListener("keydown", (e) => {
 
 newMindMapBtn.addEventListener("click", () => {
   if (!currentWorkspace || !currentUserNumber) return;
-  const name = prompt("Nombre del mapa:");
+  const name = prompt("Map name:");
   const trimmed = String(name || "").trim();
   if (!trimmed) return;
   const map = defaultMindMap(trimmed);
@@ -2213,7 +2213,7 @@ newMindMapBtn.addEventListener("click", () => {
     updatedAt: nowIso(),
     mindMaps: [map, ...(Array.isArray(proj.mindMaps) ? proj.mindMaps : [])],
   }));
-  toast("Mapa creado.");
+  toast("Map created.");
 });
 
 if (mindMapSelect) {
@@ -2226,22 +2226,22 @@ if (mindMapSelect) {
 
 mindMapSaveNameBtn.addEventListener("click", () => {
   if (!mindMapWorkingCopy || !mindMapNameInput) return;
-  mindMapWorkingCopy.name = String(mindMapNameInput.value || "").trim().slice(0, 140) || "Mapa";
+  mindMapWorkingCopy.name = String(mindMapNameInput.value || "").trim().slice(0, 140) || "Map";
   persistMindMapWorkingCopy();
-  toast("Nombre guardado.");
+  toast("Name saved.");
 });
 
 mindMapDeleteMapBtn.addEventListener("click", () => {
   const id = editingMindMapId;
   if (!id) return;
-  const ok = confirm("Eliminar este mapa mental?");
+  const ok = confirm("Delete this mind map?");
   if (!ok) return;
   unloadMindMapEditor();
   updateProjectWithMindMaps((proj) => ({
     ...proj,
     mindMaps: (Array.isArray(proj.mindMaps) ? proj.mindMaps : []).filter((m) => m.id !== id),
   }));
-  toast("Mapa eliminado.");
+  toast("Map deleted.");
 });
 
 mindMapInner.addEventListener("click", (e) => {
@@ -2269,7 +2269,7 @@ mindMapInner.addEventListener("dblclick", (e) => {
   const nid = mindMapAddChildUnderParent(parent.id);
   if (!nid) return;
   openMindMapNodeQuickEdit(nid);
-  toast("Nuevo nodo (editá el texto y guardá).");
+  toast("New node created (edit the text and save it).");
 });
 
 if (modalMindMapNode) {
@@ -2287,19 +2287,19 @@ if (mindMapQuickForm) {
       closeMindMapNodeQuickEdit();
       return;
     }
-    n.label = String(mindMapQuickLabelInput?.value || "").trim().slice(0, 200) || "Nodo";
+    n.label = String(mindMapQuickLabelInput?.value || "").trim().slice(0, 200) || "Node";
     n.description = String(mindMapQuickDescInput?.value || "").trim().slice(0, 5000);
     if (n.parentId) {
       const valid = mindMapValidParentIds(n.id, mindMapWorkingCopy.nodes);
       const newP = String(mindMapQuickParentSelect?.value || "");
       if (newP && valid.includes(newP)) n.parentId = newP;
-      else if (newP && !valid.includes(newP)) toast("Padre inválido.");
+      else if (newP && !valid.includes(newP)) toast("Invalid parent.");
       n.edgeLabel = String(mindMapQuickEdgeInput?.value || "").trim().slice(0, 120);
     }
     renderMindMapCanvas();
     persistMindMapWorkingCopy();
     closeMindMapNodeQuickEdit();
-    toast("Nodo guardado.");
+    toast("Node saved.");
   });
 }
 
@@ -2311,16 +2311,16 @@ mindMapQuickAddChildBtn?.addEventListener("click", () => {
   const nid = mindMapAddChildUnderParent(mindMapQuickEditNodeId);
   if (!nid) return;
   openMindMapNodeQuickEdit(nid);
-  toast("Hijo agregado.");
+  toast("Child added.");
 });
 
 mindMapQuickDeleteNodeBtn?.addEventListener("click", () => {
   if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) return;
   if (mindMapWorkingCopy.nodes.length <= 1) {
-    toast("No podés borrar el único nodo.");
+    toast("You cannot delete the only node.");
     return;
   }
-  const ok = confirm("¿Eliminar este nodo y todas las ramas debajo?");
+  const ok = confirm("Delete this node and all branches below?");
   if (!ok) return;
   const id = mindMapQuickEditNodeId;
   const toRemove = new Set([id, ...mindMapDescendantIds(id, mindMapWorkingCopy.nodes)]);
@@ -2330,14 +2330,14 @@ mindMapQuickDeleteNodeBtn?.addEventListener("click", () => {
   renderMindMapCanvas();
   persistMindMapWorkingCopy();
   closeMindMapNodeQuickEdit();
-  toast("Nodo eliminado.");
+  toast("Node deleted.");
 });
 
 exportBtn.addEventListener("click", () => {
   if (!currentWorkspace || !currentUserNumber) return;
   const snapshot = buildWorkspaceSnapshot(currentUserNumber);
   downloadJson(`user-${snapshot.userNumber}-workspace.json`, snapshot);
-  toast("Exportado.");
+  toast("Exported.");
 });
 
 importFile.addEventListener("change", () => {
@@ -2353,7 +2353,7 @@ importBtn.addEventListener("click", async () => {
     const text = await file.text();
     const parsed = JSON.parse(text);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      toast("JSON inválido.");
+      toast("Invalid JSON.");
       return;
     }
 
@@ -2362,9 +2362,9 @@ importBtn.addEventListener("click", async () => {
     currentProjectId = next.projects[0]?.id || null;
     setWorkspace(next);
     goProjects();
-    toast("Importado.");
+    toast("Imported.");
   } catch (err) {
-    toast(err?.message ? `Error: ${err.message}` : "No se pudo importar.");
+    toast(err?.message ? `Error: ${err.message}` : "Import failed.");
   }
 });
 
