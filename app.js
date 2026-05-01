@@ -669,6 +669,8 @@ let mindMapSelectedNodeId = null;
 let mindMapDrag = null;
 let mindMapDragCandidate = null;
 let mindMapDragListenersAttached = false;
+let mindMapLastNodeClickId = null;
+let mindMapLastNodeClickAt = 0;
 let linkedNotesSelection = new Set();
 let linkedMapsSelection = new Set();
 
@@ -691,6 +693,8 @@ function toggleLinkedMapSelection(mapId) {
 let pendingMindMapSelectId = null;
 /** Node id being edited in the double-click popup (if open). */
 let mindMapQuickEditNodeId = null;
+/** Timestamp of the most recent node editor open, used to suppress duplicate dblclick handling. */
+let mindMapNodeQuickEditOpenedAt = 0;
 /** Delayed deselect on canvas background so double-click can use the current selection. */
 let mindMapInnerClearSelectionTimer = null;
 
@@ -1483,6 +1487,8 @@ let linkedMapWorkingCopy = null;
 let linkedMapSelectedNodeId = null;
 let linkedMapDrag = null;
 let linkedMapDragCandidate = null;
+let linkedMapLastNodeClickId = null;
+let linkedMapLastNodeClickAt = 0;
 
 function openLinkedMapEditor(mapId) {
   if (!mapId) return;
@@ -1616,10 +1622,25 @@ function renderLinkedMapCanvas() {
     });
     div.addEventListener("click", (e) => {
       e.stopPropagation();
+      const now = Date.now();
+      if (linkedMapLastNodeClickId === n.id && now - linkedMapLastNodeClickAt <= 350) {
+        mindMapNodeQuickEditOpenedAt = now;
+        linkedMapLastNodeClickId = null;
+        linkedMapLastNodeClickAt = 0;
+        linkedMapDrag = null;
+        linkedMapDragCandidate = null;
+        openLinkedMapNodeQuickEdit(n.id);
+        renderLinkedMapCanvas();
+        return;
+      }
+      linkedMapLastNodeClickId = n.id;
+      linkedMapLastNodeClickAt = now;
     });
     div.addEventListener("dblclick", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (Date.now() - mindMapNodeQuickEditOpenedAt < 120) return;
+      mindMapNodeQuickEditOpenedAt = Date.now();
       linkedMapDrag = null;
       linkedMapDragCandidate = null;
       openLinkedMapNodeQuickEdit(n.id);
@@ -1685,6 +1706,7 @@ function openLinkedMapNodeQuickEdit(nodeId) {
   const node = linkedMapWorkingCopy.nodes.find((x) => x.id === nodeId);
   if (!node) return;
   mindMapQuickEditNodeId = nodeId;
+  mindMapNodeQuickEditOpenedAt = Date.now();
   linkedMapSelectedNodeId = nodeId;
   if (mindMapQuickLabelInput) mindMapQuickLabelInput.value = node.label;
   if (mindMapQuickDescInput) mindMapQuickDescInput.value = String(node.description || "");
@@ -1952,6 +1974,7 @@ function syncMindMapQuickModalActions() {
 
 function closeMindMapNodeQuickEdit() {
   mindMapQuickEditNodeId = null;
+  mindMapNodeQuickEditOpenedAt = 0;
   if (mindMapQuickForm) mindMapQuickForm.reset();
   if (mindMapQuickEdgeInput) {
     mindMapQuickEdgeInput.value = "";
@@ -1970,6 +1993,7 @@ function openMindMapNodeQuickEdit(nodeId) {
   const node = mindMapWorkingCopy.nodes.find((x) => x.id === nodeId);
   if (!node) return;
   mindMapQuickEditNodeId = nodeId;
+  mindMapNodeQuickEditOpenedAt = Date.now();
   mindMapSelectedNodeId = nodeId;
   if (mindMapQuickLabelInput) mindMapQuickLabelInput.value = node.label;
   if (mindMapQuickDescInput) mindMapQuickDescInput.value = String(node.description || "");
@@ -2144,10 +2168,25 @@ function renderMindMapCanvas() {
     });
     div.addEventListener("click", (e) => {
       e.stopPropagation();
+      const now = Date.now();
+      if (mindMapLastNodeClickId === n.id && now - mindMapLastNodeClickAt <= 350) {
+        mindMapNodeQuickEditOpenedAt = now;
+        mindMapLastNodeClickId = null;
+        mindMapLastNodeClickAt = 0;
+        mindMapDrag = null;
+        mindMapDragCandidate = null;
+        openMindMapNodeQuickEdit(n.id);
+        renderMindMapCanvas();
+        return;
+      }
+      mindMapLastNodeClickId = n.id;
+      mindMapLastNodeClickAt = now;
     });
     div.addEventListener("dblclick", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (Date.now() - mindMapNodeQuickEditOpenedAt < 120) return;
+      mindMapNodeQuickEditOpenedAt = Date.now();
       mindMapDrag = null;
       mindMapDragCandidate = null;
       openMindMapNodeQuickEdit(n.id);
