@@ -2142,7 +2142,7 @@ const mindMapHandlers = createMindMapHandlers({
   saveProject,
   linkedMapModalTitle,
   closeLinkedMapEditor,
-  renderMindMapsList,
+  renderMindMaps,
   defaultMindMap,
   nowIso,
   updateProjectWithMindMaps,
