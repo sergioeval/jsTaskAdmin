@@ -142,12 +142,14 @@
           </div>
 
           <section class="kanban" aria-label="Kanban">
-          <div class="column" data-status="backlog">
-            <div class="columnHeader">
-              <h3 class="columnTitle">Backlog</h3>
-              <span id="count-backlog" class="pill">0</span>
-            </div>
-            <div class="dropzone" data-status="backlog" id="col-backlog"></div>
+          <div class="kanbanTop">
+            <button id="openBacklogBtn" class="btnSecondary" type="button">
+              Backlog <span id="count-backlog" class="pill">0</span>
+            </button>
+            <div class="kanbanSpacer"></div>
+            <button id="openDoneBtn" class="btnSecondary" type="button">
+              Done <span id="count-done" class="pill">0</span>
+            </button>
           </div>
 
           <div class="column" data-status="todo">
@@ -170,14 +172,6 @@
               <span id="count-blocked" class="pill">0</span>
             </div>
             <div class="dropzone" data-status="blocked" id="col-blocked"></div>
-          </div>
-
-          <div class="column" data-status="done">
-            <div class="columnHeader">
-              <h3 class="columnTitle">Done</h3>
-              <span id="count-done" class="pill">0</span>
-            </div>
-            <div class="dropzone" data-status="done" id="col-done"></div>
           </div>
           </section>
 
