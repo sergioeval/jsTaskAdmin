@@ -152,7 +152,7 @@ function saveProjectNotes(userNumber, projectId, notes) {
   localStorage.setItem(STORAGE.projectNotesKey(userNumber, projectId), JSON.stringify(notes));
 }
 
-function clampMindCoord(v) {
+export function clampMindCoord(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0;
   return Math.round(Math.max(0, Math.min(4000, n)));

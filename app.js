@@ -7,6 +7,7 @@ import {
   sanitizeUserNumber,
   nowIso,
   clampPriority,
+  clampMindCoord,
   defaultProject,
   sanitizeLinkedNoteIds,
   sanitizeLinkedMapIds,
@@ -1118,7 +1119,7 @@ function renderLinkedMapCanvas() {
         nodeStartX: n.x,
         nodeStartY: n.y,
       };
-      renderLinkedMapCanvas();
+      linkedMapSyncNodeSelectionHighlight();
     });
     div.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1147,6 +1148,14 @@ function renderLinkedMapCanvas() {
       renderLinkedMapCanvas();
     });
     linkedMapNodesLayer.appendChild(div);
+  }
+}
+
+function linkedMapSyncNodeSelectionHighlight() {
+  if (!linkedMapNodesLayer) return;
+  for (const el of linkedMapNodesLayer.querySelectorAll(".mindNode")) {
+    const id = el.dataset.nodeId;
+    el.classList.toggle("isSelected", id === linkedMapSelectedNodeId);
   }
 }
 
@@ -1185,7 +1194,7 @@ function onLinkedMapBackgroundDblClick(e) {
   if (!parentId) return;
   const parent = linkedMapWorkingCopy.nodes.find((x) => x.id === parentId);
   if (!parent) return;
-  const pos = mindMapNextChildPosition(parent);
+  const pos = mindMapNextChildPosition(parent, linkedMapWorkingCopy);
   const nid = uuid();
   linkedMapWorkingCopy.nodes.push({
     id: nid,
@@ -1489,13 +1498,14 @@ function mindMapGetRootNode() {
 }
 
 /** Creates a child under `parentId`. Returns the new node id or null. */
-function mindMapAddChildUnderParent(parentId) {
-  if (!mindMapWorkingCopy) return null;
-  const parent = mindMapWorkingCopy.nodes.find((x) => x.id === parentId);
+function mindMapAddChildUnderParent(parentId, workingCopy) {
+  const wc = workingCopy || mindMapWorkingCopy;
+  if (!wc) return null;
+  const parent = wc.nodes.find((x) => x.id === parentId);
   if (!parent) return null;
-  const pos = mindMapNextChildPosition(parent);
+  const pos = mindMapNextChildPosition(parent, wc);
   const nid = uuid();
-  mindMapWorkingCopy.nodes.push({
+  wc.nodes.push({
     id: nid,
     label: "New",
     x: pos.x,
@@ -1504,16 +1514,24 @@ function mindMapAddChildUnderParent(parentId) {
     edgeLabel: "",
     description: "",
   });
-  mindMapSelectedNodeId = parent.id;
-  renderMindMapCanvas();
-  persistMindMapWorkingCopy();
+  const isLinkedMap = wc === linkedMapWorkingCopy;
+  if (isLinkedMap) {
+    linkedMapSelectedNodeId = parent.id;
+    renderLinkedMapCanvas();
+    persistLinkedMapWorkingCopy();
+  } else {
+    mindMapSelectedNodeId = parent.id;
+    renderMindMapCanvas();
+    persistMindMapWorkingCopy();
+  }
   return nid;
 }
 
 /** Place each new sibling offset so nodes do not stack (was mistaken for "overwrite"). */
-function mindMapNextChildPosition(parent) {
-  if (!mindMapWorkingCopy) return { x: 0, y: 0 };
-  const idx = mindMapWorkingCopy.nodes.filter((n) => n.parentId === parent.id).length;
+function mindMapNextChildPosition(parent, workingCopy) {
+  const wc = workingCopy || mindMapWorkingCopy;
+  if (!wc) return { x: parent.x, y: parent.y + MIND_NODE_H + 24 };
+  const idx = wc.nodes.filter((n) => n.parentId === parent.id).length;
   const gapX = 28;
   const gapY = MIND_NODE_H + 20;
   const row = Math.floor(idx / 5);
