@@ -1362,8 +1362,10 @@ function renderNotes(ws) {
 }
 
 function fillMindMapParentSelect(selectEl, node) {
-  if (!selectEl || !mindMapWorkingCopy || !node) return;
-  const { nodes } = mindMapWorkingCopy;
+  if (!selectEl || !node) return;
+  const workingCopy = linkedMapWorkingCopy || mindMapWorkingCopy;
+  if (!workingCopy) return;
+  const { nodes } = workingCopy;
   selectEl.innerHTML = "";
 
   if (!node.parentId) {
@@ -1436,12 +1438,13 @@ function syncMindMapQuickEdgeFieldForNode(node) {
 
 function syncMindMapQuickModalActions() {
   if (!mindMapQuickDeleteNodeBtn) return;
-  if (!mindMapWorkingCopy || !mindMapQuickEditNodeId) {
+  const workingCopy = linkedMapWorkingCopy || mindMapWorkingCopy;
+  if (!workingCopy || !mindMapQuickEditNodeId) {
     mindMapQuickDeleteNodeBtn.disabled = true;
     mindMapQuickDeleteNodeBtn.title = "";
     return;
   }
-  const onlyOne = mindMapWorkingCopy.nodes.length <= 1;
+  const onlyOne = workingCopy.nodes.length <= 1;
   mindMapQuickDeleteNodeBtn.disabled = onlyOne;
   mindMapQuickDeleteNodeBtn.title = onlyOne
     ? "You cannot delete the only node."
