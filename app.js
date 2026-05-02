@@ -10,6 +10,7 @@ import {
   defaultProject,
   sanitizeLinkedNoteIds,
   sanitizeLinkedMapIds,
+  sanitizeMindMap,
   defaultMindMap,
   ensureDefaultStorage,
   buildWorkspaceSnapshot,
